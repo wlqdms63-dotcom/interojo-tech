@@ -135,12 +135,25 @@
             pendingChanges[monthKey][key] = value;
 
             const syncStatus = document.getElementById('syncStatus');
+
+            // [Fix] Check Auth status explicitly
+            if (!user) {
+                if (syncStatus) {
+                    syncStatus.style.opacity = '1';
+                    syncStatus.classList.remove('bg-indigo-600');
+                    syncStatus.classList.add('bg-rose-600');
+                    syncStatus.innerHTML = `⚠️ 로그인 필요 (설정확인)`;
+                }
+                console.warn("Save cancelled: User not authenticated. Check Firebase Config.");
+                return;
+            }
+
             if (syncStatus) {
+                syncStatus.classList.remove('bg-rose-600');
+                syncStatus.classList.add('bg-indigo-600');
                 syncStatus.style.opacity = '1';
                 syncStatus.innerHTML = `<span class="animate-spin mr-1">↻</span> 저장 중...`;
             }
-
-            if (!user) return;
 
             clearTimeout(saveTimeout);
             saveTimeout = setTimeout(async () => {
@@ -163,7 +176,11 @@
                     }
                 } catch (e) {
                     console.error("Save failed:", e);
-                    if (syncStatus) syncStatus.innerText = "저장 실패";
+                    if (syncStatus) {
+                        syncStatus.classList.remove('bg-indigo-600');
+                        syncStatus.classList.add('bg-rose-600');
+                        syncStatus.innerText = "저장 실패 (권한/네트워크)";
+                    }
                 }
             }, 500);
         };
