@@ -574,33 +574,31 @@
         }
 
         function calculateShifts(date, isHoliday) {
-            // Re-implementing specific shift logic from previous file
-            // Simplified for brevity in this response, using 4-2 pattern as default
+            // Pattern: 4 Day, 2 Off, 4 Night, 2 Off (12 days)
+            // Sequence: D, D, D, D, Mu, Ju, N, N, N, N, Mu, Ju
+            // Indices:  0, 1, 2, 3, 4,  5,  6, 7, 8, 9, 10, 11
+
+            const PATTERN = [
+                '주간', '주간', '주간', '주간', '무휴', '주휴',
+                '야간', '야간', '야간', '야간', '무휴', '주휴'
+            ];
+
             const diff = Math.floor((date - BASE_DATE) / (86400000));
-            const cycle = (diff % 6 + 6) % 6;
-            // 0,1: Day, 2,3: Night, 4,5: Off
-            // Rotation: A starts at index 0 (Day) on BaseDate?
-            // Need to port exact logic. 
-            // For MVP: Porting exact logic from user file.
 
-            // [PORTED LOGIC]
-            const type = document.getElementById('cycleType').value;
-            // Assuming Type 3 (4-2)
-
-            // A: (diff) % 6
-            // B: (diff + 2) % 6
-            // C: (diff + 4) % 6
-
-            const getS = (i) => {
-                if (i < 2) return { label: '주간' };
-                if (i < 4) return { label: '야간' };
-                return { label: '휴무' };
+            // Helper to get pattern index safely
+            const getIdx = (offset) => {
+                let val = (diff + offset) % 12;
+                return (val < 0) ? val + 12 : val;
             };
 
+            const getShift = (idx) => ({ label: PATTERN[idx] });
+
+            // Anchor 2026-01-01: A=JuHyu(5), B=Night(9), C=Day(1)
+            // Offsets derived to match this anchor:
             return {
-                A: getS(cycle),
-                B: getS((cycle + 2) % 6),
-                C: getS((cycle + 4) % 6),
+                A: getShift(getIdx(5)),
+                B: getShift(getIdx(9)),
+                C: getShift(getIdx(1)),
                 DAY_ONLY: isHoliday ? { label: '휴일' } : (date.getDay() === 0 ? { label: '주휴' } : { label: '주간' })
             };
         }
@@ -608,8 +606,10 @@
         function getShiftColor(label) {
             if (label === '주간') return 'text-amber-600';
             if (label === '야간') return 'text-indigo-600';
-            if (label === '휴무' || label === '주휴') return 'text-emerald-600';
-            return 'text-red-500';
+            if (label === '휴무' || label === '무휴') return 'text-slate-500';
+            if (label === '주휴') return 'text-emerald-600';
+            if (label === '휴일') return 'text-red-500';
+            return 'text-slate-700';
         }
 
     </script>
