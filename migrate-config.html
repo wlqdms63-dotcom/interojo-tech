@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Config Migration Tool v2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // --- Data to Migrate ---
+        const TEAM_MEMBERS = {
+            'A': ['박영남', '홍성민', '김정국', '김도훈2', '이민정', '조명주', ''],
+            'B': ['오영석', '이동웅', '김윤수', '주정호', '박소희', '조미형', '송보란'],
+            'C': ['정인철', '김도영', '이은혁', '최용', '전수진', '김지혜2', ''],
+            'DAY_ONLY': ['신화동', '임현규', '김민솔', '']
+        };
+
+        const HOLIDAYS = {
+            '2025-01-01': '신정', '2025-01-28': '설날', '2025-01-29': '설날', '2025-01-30': '설날', '2025-03-01': '삼일절', '2025-03-03': '대체공휴일',
+            '2025-05-05': '어린이날', '2025-05-06': '부처님오신날', '2025-06-06': '현충일', '2025-08-15': '광복절', '2025-10-03': '개천절',
+            '2025-10-06': '추석', '2025-10-07': '추석', '2025-10-08': '추석', '2025-10-09': '한글날', '2025-12-25': '성탄절',
+            '2026-01-01': '신정', '2026-02-16': '설날', '2026-02-17': '설날', '2026-02-18': '설날', '2026-03-01': '삼일절',
+            '2026-05-05': '어린이날', '2026-05-24': '부처님오신날', '2026-06-06': '현충일', '2026-08-15': '광복절', '2026-09-24': '추석',
+            '2026-09-25': '추석', '2026-09-26': '추석', '2026-10-03': '개천절', '2026-10-09': '한글날', '2026-12-25': '성탄절'
+        };
+
+        const SHIFT_TYPES = {
+            DAY: { label: '주간', color: 'bg-amber-50 text-amber-700', border: 'border-amber-200', badge: 'bg-amber-100 text-amber-800 ring-1 ring-amber-200' },
+            NIGHT: { label: '야간', color: 'bg-indigo-50 text-indigo-700', border: 'border-indigo-200', badge: 'bg-indigo-100 text-indigo-800 ring-1 ring-indigo-200' },
+            JU_HYU: { label: '무휴', color: 'bg-slate-50 text-slate-500', border: 'border-slate-200', badge: 'bg-slate-100 text-slate-600 ring-1 ring-slate-200' },
+            MU_HYU: { label: '주휴', color: 'bg-emerald-50 text-emerald-700', border: 'border-emerald-200', badge: 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200' },
+            YU_HYU: { label: '유휴', color: 'bg-red-50 text-red-700', border: 'border-red-200', badge: 'bg-red-100 text-red-800 ring-1 ring-red-200' }
+        };
+
+        const ATTENDANCE_OPTIONS = [
+            { value: '정상', label: '정상', color: 'text-slate-900 font-medium' },
+            { value: '연차', label: '연차', color: 'text-rose-600 font-bold' },
+            { value: '반차', label: '반차', color: 'text-blue-600 font-bold' },
+            { value: '특근', label: '특근', color: 'text-indigo-600 font-bold' },
+            { value: '조퇴', label: '조퇴', color: 'text-amber-600 font-bold' },
+            { value: '지각', label: '지각', color: 'text-amber-600 font-bold' },
+            { value: '교육', label: '교육', color: 'text-emerald-600 font-bold' },
+            { value: '공가', label: '공가', color: 'text-slate-600 font-bold' }
+        ];
+
+        window.startMigration = async () => {
+            const statusDiv = document.getElementById('status');
+            const configStr = document.getElementById('firebaseConfig').value.trim();
+
+            if (!configStr) {
+                alert("Firebase Config를 입력해주세요!");
+                return;
+            }
+
+            statusDiv.innerHTML = "<div>🚀 연결 및 인증 시도 중...</div>";
+
+            try {
+                // Parse Config
+                let firebaseConfig;
+                // Remove 'const firebaseConfig =' part if pasted
+                const cleanedStr = configStr.replace(/const\s+\w+\s*=\s*/, '').replace(/;/g, '');
+                try {
+                    // Try parsing as JSON first, if fails try eval-like object parsing (risky but convenient for copy-paste)
+                    // Safest is to extract JSON. Assuming user pastes object content or specific format.
+                    // Let's use a function constructor for object literal parsing (client side tool, acceptable for admin)
+                    firebaseConfig = new Function("return " + cleanedStr)();
+                } catch (e) {
+                    statusDiv.innerHTML += `<div class='text-red-600'>❌ Config 파싱 오류: 올바른 JSON/Object 형식이 아닙니다.</div>`;
+                    return;
+                }
+
+                const app = initializeApp(firebaseConfig);
+                const auth = getAuth(app);
+                const db = getFirestore(app);
+                const appId = 'production-roster-2026';
+
+                // Auth
+                await signInAnonymously(auth);
+                statusDiv.innerHTML += "<div class='text-green-600'>✅ Firebase 인증 성공</div>";
+
+                // 1. Team Members
+                await setDoc(doc(db, 'artifacts', appId, 'config', 'teamMembers'), TEAM_MEMBERS);
+                statusDiv.innerHTML += "<div class='text-green-600'>✅ Team Members 업로드 완료</div>";
+
+                // 2. Holidays
+                await setDoc(doc(db, 'artifacts', appId, 'config', 'holidays'), HOLIDAYS);
+                statusDiv.innerHTML += "<div class='text-green-600'>✅ Holidays 업로드 완료</div>";
+
+                // 3. Shift Types
+                await setDoc(doc(db, 'artifacts', appId, 'config', 'shiftTypes'), SHIFT_TYPES);
+                statusDiv.innerHTML += "<div class='text-green-600'>✅ Shift Types 업로드 완료</div>";
+
+                // 4. Attendance Options
+                const attendObj = { list: ATTENDANCE_OPTIONS };
+                await setDoc(doc(db, 'artifacts', appId, 'config', 'attendanceOptions'), attendObj);
+                statusDiv.innerHTML += "<div class='text-green-600'>✅ Attendance Options 업로드 완료</div>";
+
+                statusDiv.innerHTML += "<div class='text-blue-600 font-bold mt-4'>🎉 모든 작업 완료!</div>";
+
+            } catch (e) {
+                statusDiv.innerHTML += `<div class='text-red-600'>❌ 오류 발생: ${e.message}</div>`;
+                console.error(e);
+            }
+        }
+    </script>
+</head>
+
+<body class="bg-gray-100 p-10">
+    <div class="max-w-2xl mx-auto bg-white p-8 rounded shadow">
+        <h1 class="text-2xl font-bold mb-4">Config Migration Tool v2</h1>
+        <p class="mb-4 text-gray-600">
+            새로운 Firebase 설정을 아래에 붙여넣고 버튼을 누르세요.<br>
+            <span class="text-xs text-slate-400">(const firebaseConfig = { ... } 형태 그대로 복사해도 됩니다)</span>
+        </p>
+
+        <textarea id="firebaseConfig" class="w-full h-40 p-3 border rounded font-mono text-xs bg-slate-50 mb-4"
+            placeholder='{
+  apiKey: "AIza...",
+  authDomain: "...",
+  projectId: "...",
+  ...
+}'></textarea>
+
+        <button onclick="startMigration()"
+            class="w-full bg-indigo-600 text-white px-4 py-3 rounded hover:bg-indigo-700 transition font-bold shadow-lg">
+            🚀 Firebase 연결 및 초기 데이터 업로드
+        </button>
+
+        <div id="status" class="mt-6 space-y-2 text-sm border-t pt-4 font-mono"></div>
+    </div>
+</body>
+
+</html>
