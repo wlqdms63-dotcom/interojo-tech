@@ -1,133 +1,116 @@
 <!DOCTYPE html>
 <html lang="ko">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>원료생산팀 설비운영 근무계획표</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-
+    
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // ==========================================
-        // [필수] Firebase 설정 (붙여넣기)
-        // ==========================================
-        const firebaseConfig = {
-            apiKey: "AIzaSyCmBpqXwxI0OdkG9YeR8h2YvhNFovir8Fs",
-            authDomain: "interojo-tech.firebaseapp.com",
-            projectId: "interojo-tech",
-            storageBucket: "interojo-tech.firebasestorage.app",
-            messagingSenderId: "294484133296",
-            appId: "1:294484133296:web:429a662826cabb37a58275",
-            measurementId: "G-87HD7CVN3X"
+        // ============================================================================
+        // [필수] 2단계: Firebase 설정값 입력
+        // ============================================================================
+        const myFirebaseConfig = {
+              apiKey: "AIzaSyAE1Foubgt3JAFeG-VSPTbRRZIXNw6zG1Y",
+              authDomain: "interojo-jjtech.firebaseapp.com",
+              projectId: "interojo-jjtech",
+              storageBucket: "interojo-jjtech.firebasestorage.app",
+              messagingSenderId: "697197674132",
+              appId: "1:697197674132:web:ea7a56047dcd9b37947e81",
+              measurementId: "G-PX7ZL4ZSYG"
         };
-        const appId = 'production-roster-2026';
-        // ==========================================
+        
+        const myAppId = 'production-roster-2026'; 
+        // ============================================================================
 
+        const envConfig = JSON.parse(new URLSearchParams(window.location.search).get('__firebase_config') || '{}');
+        const firebaseConfig = (Object.keys(myFirebaseConfig).length > 0 && myFirebaseConfig.apiKey) ? myFirebaseConfig : envConfig;
+        const appId = (Object.keys(myFirebaseConfig).length > 0 && myFirebaseConfig.apiKey) ? myAppId : 'default-app';
+        
+        // [중요] 전역 변수로 설정 상태 노출 (외부 스크립트 접근용)
+        window.hasFirebaseConfig = (Object.keys(firebaseConfig).length > 0 && !!firebaseConfig.apiKey);
+        
         let app, auth, db, user;
+        window.isFirebaseLoaded = false;
 
-        // Dynamic Config State
-        window.TEAM_MEMBERS = {};
-        window.HOLIDAYS = {};
-        window.SHIFT_TYPES = {};
-        window.ATTENDANCE_OPTIONS = [];
-        window.isConfigLoaded = false;
+        // 설정값 미입력 시 경고 표시 함수
+        function showConfigWarning() {
+            const warningBanner = document.createElement('div');
+            warningBanner.className = 'fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4';
+            warningBanner.innerHTML = `
+                <div class="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl text-center">
+                    <h3 class="text-lg font-bold text-gray-900 mb-2">설정이 필요합니다!</h3>
+                    <p class="text-sm text-gray-500 mb-6">Firebase 설정값을 코드에 입력해주세요.</p>
+                    <button onclick="this.closest('.fixed').remove()" class="w-full bg-gray-600 text-white py-2 rounded">닫기</button>
+                </div>
+            `;
+            document.body.appendChild(warningBanner);
+        }
 
-        async function initApp() {
-            // Config Safety Check
-            if (!firebaseConfig.apiKey) {
-                const manualConfig = prompt("설정 오류: firebaseConfig가 비어있습니다. 내용을 붙여넣어주세요.");
-                if (manualConfig) {
-                    try {
-                        const cleaned = manualConfig.replace(/const\s+\w+\s*=\s*/, '').replace(/;/g, '');
-                        const parsed = new Function("return " + cleaned)();
-                        Object.assign(firebaseConfig, parsed);
-                    } catch (e) { alert("설정 파싱 오류"); return; }
-                } else {
-                    return;
-                }
-            }
-
-            app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-
-            // Auth
+        if (!window.hasFirebaseConfig) {
+            setTimeout(showConfigWarning, 1000);
+        } else {
             try {
-                await signInAnonymously(auth);
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                signInAnonymously(auth).catch((e) => console.warn("Auth failed:", e));
+                
                 onAuthStateChanged(auth, (u) => {
-                    user = u;
-                    if (user) {
-                        loadDynamicConfig().then(() => {
-                            initRealtimeListeners(); // Data Sync
-                        });
+                    if (u) {
+                        user = u;
+                        initRealtimeListeners();
                     }
                 });
-            } catch (e) { console.error("Auth Fail", e); }
-        }
-
-        async function loadDynamicConfig() {
-            try {
-                // Load parallel
-                const [teamSnap, holiSnap, shiftSnap, attendSnap] = await Promise.all([
-                    getDoc(doc(db, 'artifacts', appId, 'config', 'teamMembers')),
-                    getDoc(doc(db, 'artifacts', appId, 'config', 'holidays')),
-                    getDoc(doc(db, 'artifacts', appId, 'config', 'shiftTypes')),
-                    getDoc(doc(db, 'artifacts', appId, 'config', 'attendanceOptions'))
-                ]);
-
-                if (teamSnap.exists()) window.TEAM_MEMBERS = teamSnap.data();
-                if (holiSnap.exists()) window.HOLIDAYS = holiSnap.data();
-                if (shiftSnap.exists()) window.SHIFT_TYPES = shiftSnap.data();
-                if (attendSnap.exists()) window.ATTENDANCE_OPTIONS = attendSnap.data().list;
-
-                window.isConfigLoaded = true;
-
-                // Re-render Calendar with loaded holidays
-                if (window.renderCalendar) window.renderCalendar();
-
-            } catch (e) {
-                console.error("Config Load Error:", e);
-                alert("설정 데이터를 불러오는데 실패했습니다. (새로고침 권장)");
+            } catch(e) {
+                console.warn("Firebase init failed:", e);
             }
         }
 
-        // --- Data Sync Logic ---
-        window.rosterData = {};
+        // --- Data Management (Multi-month support) ---
+        window.rosterData = {}; 
         let unsubscribes = [];
 
         function initRealtimeListeners() {
-            // Unsub existing
-            unsubscribes.forEach(u => u());
+            unsubscribes.forEach(unsub => unsub());
             unsubscribes = [];
 
             const currentY = window.currentYear || 2026;
-            const currentM = window.currentMonth || 0;
-
-            // Subscribe Previous, Current, Next month
-            const months = [
+            const currentM = window.currentMonth || 0; 
+            
+            const monthsToSubscribe = [
                 new Date(currentY, currentM - 1, 1),
                 new Date(currentY, currentM, 1),
                 new Date(currentY, currentM + 1, 1)
             ];
 
-            months.forEach(d => {
+            monthsToSubscribe.forEach(d => {
                 const docId = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-                const unsub = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'roster', docId), (snap) => {
-                    window.rosterData[docId] = snap.exists() ? snap.data() : {};
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'roster', docId);
 
-                    // Show Live Badge
-                    document.getElementById('liveBadge').classList.remove('hidden');
+                const unsub = onSnapshot(docRef, (snapshot) => {
+                    window.isFirebaseLoaded = true;
+                    if (snapshot.exists()) {
+                        window.rosterData[docId] = snapshot.data();
+                    } else {
+                        window.rosterData[docId] = {};
+                    }
+                    
+                    const liveBadge = document.getElementById('liveBadge');
+                    if(liveBadge) liveBadge.classList.remove('hidden');
 
                     if (window.renderCalendar) window.renderCalendar();
-                });
+                }, (error) => console.error(`Sync error (${docId}):`, error));
+
                 unsubscribes.push(unsub);
             });
         }
@@ -137,486 +120,482 @@
         let pendingChanges = {};
 
         window.saveToDb = (key, value) => {
-            if (!user) { alert("로그인이 필요합니다 (인증 대기중)"); return; }
-
             const parts = key.split('_');
-            // key format: memo_A_2026-01-01_0 or memo_type_A_2026-01-01_0
-            let dateStr = (parts[1] === 'ot' || parts[1] === 'type') ? parts[3] : parts[2];
-            const monthKey = dateStr.substring(0, 7);
+            let dateStr = '';
+            if (parts[1] === 'ot' || parts[1] === 'type') dateStr = parts[3];
+            else dateStr = parts[2];
+            const monthKey = dateStr.substring(0, 7); 
 
-            // Optimistic Update
             if (!window.rosterData[monthKey]) window.rosterData[monthKey] = {};
             window.rosterData[monthKey][key] = value;
-
+            
             if (!pendingChanges[monthKey]) pendingChanges[monthKey] = {};
             pendingChanges[monthKey][key] = value;
 
-            updateSyncStatus('saving');
+            const syncStatus = document.getElementById('syncStatus');
+            if(syncStatus) {
+                syncStatus.style.opacity = '1';
+                syncStatus.innerHTML = `<span class="animate-spin mr-1">↻</span> 저장 중...`;
+            }
+
+            if (!user) return;
 
             clearTimeout(saveTimeout);
             saveTimeout = setTimeout(async () => {
-                const updates = { ...pendingChanges };
+                const updatesByMonth = { ...pendingChanges };
                 pendingChanges = {};
 
                 try {
-                    const promises = Object.keys(updates).map(mKey => {
-                        return setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'roster', mKey), updates[mKey], { merge: true });
+                    const promises = Object.keys(updatesByMonth).map(mKey => {
+                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'roster', mKey);
+                        return setDoc(docRef, updatesByMonth[mKey], { merge: true });
                     });
+                    
                     await Promise.all(promises);
-                    updateSyncStatus('saved');
+
+                    if(syncStatus) {
+                        syncStatus.innerHTML = `<span>✓</span> 저장 완료`;
+                        setTimeout(() => { 
+                            if(Object.keys(pendingChanges).length === 0) syncStatus.style.opacity = '0'; 
+                        }, 800);
+                    }
                 } catch (e) {
-                    console.error(e);
-                    updateSyncStatus('error');
+                    console.error("Save failed:", e);
+                    if(syncStatus) syncStatus.innerText = "저장 실패";
                 }
             }, 500);
         };
 
-        function updateSyncStatus(state) {
-            const el = document.getElementById('syncStatus');
-            if (!el) return;
-            el.style.opacity = '1';
-
-            if (state === 'saving') {
-                el.innerHTML = '↻ 저장 중...';
-                el.className = "flex items-center bg-indigo-600 px-3 py-1 rounded-full text-white text-xs font-bold";
-            } else if (state === 'saved') {
-                el.innerHTML = '✓ 저장 완료';
-                setTimeout(() => el.style.opacity = '0', 1000);
-            } else {
-                el.innerHTML = '⚠️ 저장 실패';
-                el.className = "flex items-center bg-red-600 px-3 py-1 rounded-full text-white text-xs font-bold";
-            }
-        }
-
-        // Start
-        initApp();
-
-        // ------------------------------------------
-        // Global Helpers exposed for UI
-        // ------------------------------------------
         window.changeMonthListener = () => {
             if (user) initRealtimeListeners();
         };
 
+        window.getDbData = (key) => {
+            const parts = key.split('_');
+            let dateStr = '';
+            if (parts[1] === 'ot' || parts[1] === 'type') dateStr = parts[3];
+            else dateStr = parts[2];
+            const monthKey = dateStr.substring(0, 7);
+            return window.rosterData[monthKey] && window.rosterData[monthKey][key] 
+                ? window.rosterData[monthKey][key] 
+                : '';
+        }
     </script>
 
-    <!-- Tailwind Config -->
     <script>
-        tailwind.config = { theme: { extend: { fontFamily: { sans: ['Noto Sans KR'] } } } }
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Noto Sans KR', 'sans-serif'] },
+                    colors: { primary: '#4f46e5', secondary: '#64748b', bg: '#f8fafc' },
+                    boxShadow: {
+                        'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+                        'card': '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+                    }
+                }
+            }
+        }
     </script>
     <style>
-        /* Previous styles preserved */
-        body {
-            background-color: #f1f5f9;
-        }
-
-        .calendar-grid {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 1px;
-            background-color: #e2e8f0;
-            border-radius: 0 0 0.75rem 0.75rem;
-            overflow: hidden;
-        }
-
-        .calendar-day {
-            min-height: 110px;
-            background-color: white;
-        }
-
-        .calendar-day:hover {
-            background-color: #f8fafc;
-        }
-
-        .day-card {
-            border: 1px solid #e2e8f0;
-            background: white;
-            border-radius: 0.5rem;
-            overflow: hidden;
-            min-height: 140px;
-        }
-
-        .detail-card {
-            border-top: 3px solid #6366f1;
-        }
-
-        /* Time Lock Style */
-        .locked-input {
-            background-color: #f1f5f9;
-            color: #94a3b8;
-            cursor: not-allowed;
-        }
+        body { background-color: #f1f5f9; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background-color: #e2e8f0; border-radius: 0 0 0.75rem 0.75rem; overflow: hidden; }
+        .calendar-day { min-height: 110px; background-color: white; transition: background-color 0.2s; }
+        .calendar-day:hover { background-color: #f8fafc; }
+        .horizontal-scroll-container { display: flex; overflow-x: auto; padding: 0.5rem; gap: 0.25rem; scroll-behavior: smooth; align-items: stretch; }
+        .horizontal-scroll-container::-webkit-scrollbar { height: 8px; }
+        .horizontal-scroll-container::-webkit-scrollbar-track { background: #e2e8f0; border-radius: 10px; }
+        .horizontal-scroll-container::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 10px; }
+        .horizontal-scroll-container::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        .day-card { flex: 0 0 160px; background-color: white; border-radius: 0.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #e2e8f0; }
+        .detail-card { flex: 0 0 160px; background-color: white; border-radius: 0.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #e2e8f0; border-top: 3px solid #6366f1; }
+        .summary-card { flex: 0 0 140px; background-color: white; border-radius: 0.5rem; display: flex; flex-direction: column; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; }
+        .date-box { width: 100%; height: 50px; display: flex; }
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        .tab-container { background-color: #f1f5f9; padding: 0.25rem; border-radius: 0.75rem; display: flex; }
+        .main-tab { flex: 1; padding: 0.5rem; font-size: 0.85rem; font-weight: 600; text-align: center; border-radius: 0.5rem; cursor: pointer; transition: all 0.2s ease; color: #64748b; }
+        .main-tab.active { background-color: white; color: #4f46e5; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .main-tab.inactive:hover { color: #334155; background-color: rgba(255,255,255,0.5); }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+        .loading-overlay { position: absolute; inset: 0; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; z-index: 50; backdrop-filter: blur(2px); }
     </style>
 </head>
+<body class="text-slate-700 antialiased">
 
-<body class="text-slate-700">
-    <div class="max-w-[1400px] mx-auto p-4 relative">
-        <!-- Status Badges -->
+    <div class="max-w-[1400px] mx-auto p-4 md:p-6 relative">
+        <!-- Live Status Badges -->
         <div class="fixed top-4 right-4 z-50 flex flex-col gap-2 items-end">
-            <div id="liveBadge"
-                class="hidden bg-white/90 border border-emerald-100 text-emerald-600 px-2 py-1 rounded-full text-xs font-bold shadow animate-pulse">
-                ● LIVE</div>
-            <div id="syncStatus" class="opacity-0 transition-opacity"></div>
+            <div id="liveBadge" class="hidden flex items-center bg-white/90 backdrop-blur px-2.5 py-1 rounded-full shadow-md border border-emerald-100 text-[10px] font-bold text-emerald-600 transition-all">
+                <span class="relative flex h-2 w-2 mr-1.5"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span>LIVE
+            </div>
+            <div id="syncStatus" class="flex items-center bg-indigo-600 px-2.5 py-1 rounded-full shadow-md text-[10px] font-medium text-white opacity-0 transition-opacity duration-300">
+                <svg class="animate-spin -ml-0.5 mr-1.5 h-2.5 w-2.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>저장 중...
+            </div>
         </div>
 
-        <header class="mb-6 text-center">
-            <h1 class="text-3xl font-bold text-indigo-700">원료생산팀 설비운영 근무계획표</h1>
+        <!-- Header -->
+        <header class="mb-6 flex flex-col items-center relative">
+            <h1 class="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-blue-500 tracking-tight">
+                원료생산팀 설비운영 근무계획표
+            </h1>
         </header>
 
-        <!-- Controls -->
-        <div class="bg-white rounded-xl shadow p-4 mb-6">
-            <div class="flex flex-wrap gap-4 items-center justify-between">
-                <!-- Tab -->
-                <div class="flex bg-slate-100 rounded p-1">
-                    <button onclick="setTab('CALENDAR')" id="tab-CALENDAR"
-                        class="px-4 py-2 text-sm font-bold bg-white text-indigo-600 rounded shadow">월간 캘린더</button>
-                    <button onclick="setTab('TEAM')" id="tab-TEAM"
-                        class="px-4 py-2 text-sm font-bold text-slate-500">근무조별 입력</button>
-                    <button onclick="setTab('DETAIL')" id="tab-DETAIL"
-                        class="px-4 py-2 text-sm font-bold text-slate-500">전체 상세</button>
-                </div>
-
-                <!-- Date Nav -->
-                <div class="flex items-center gap-2">
-                    <select id="yearSelect" class="border rounded px-2 py-1 text-sm font-bold"></select>
-                    <select id="monthSelect" class="border rounded px-2 py-1 text-sm font-bold"></select>
-                    <button onclick="moveMonth(-1)" class="p-1 bg-slate-100 rounded hover:bg-slate-200">◀</button>
-                    <button onclick="moveMonth(1)"
-                        class="p-1 bg-indigo-600 text-white rounded hover:bg-indigo-700">▶</button>
-                </div>
+        <!-- Main Controls -->
+        <div class="bg-white rounded-xl shadow-soft p-1 mb-6 border border-slate-100">
+            <div class="tab-container mb-4 mx-4 mt-4 max-w-2xl lg:mx-6">
+                <button id="tab-CALENDAR" onclick="switchMainTab('CALENDAR')" class="main-tab active"><span class="mr-1">📅</span>월간 캘린더</button>
+                <button id="tab-TEAM" onclick="switchMainTab('TEAM')" class="main-tab inactive"><span class="mr-1">✍️</span>근무조별 입력</button>
+                <button id="tab-DETAIL" onclick="switchMainTab('DETAIL')" class="main-tab inactive"><span class="mr-1">🔍</span>전체 상세</button>
             </div>
-
-            <!-- Filters -->
-            <div class="mt-4 flex gap-4 items-center border-t pt-4">
-                <div>
-                    <span class="text-xs font-bold text-slate-500 uppercase">Pattern</span>
-                    <select id="cycleType" onchange="renderCalendar()" class="ml-2 border rounded text-xs px-2 py-1">
-                        <option value="3">4근무 2휴무</option>
-                        <option value="2">2근무 2휴무</option>
-                        <option value="1">2근무 1휴무</option>
-                    </select>
-                </div>
-
-                <!-- New Calendar Filter -->
-                <div id="calendarFilterBox" class="flex gap-2 items-center">
-                    <span class="text-xs font-bold text-slate-500 uppercase">View</span>
-                    <select id="calendarTeamSelect" onchange="setCalendarFilter(this.value)"
-                        class="border rounded text-xs px-2 py-1 font-bold text-indigo-700">
-                        <option value="ALL">전체 근무조</option>
-                        <option value="A">A조</option>
-                        <option value="B">B조</option>
-                        <option value="C">C조</option>
-                        <option value="DAY_ONLY">주간</option>
-                    </select>
-                </div>
-
-                <div id="teamFilters" class="hidden flex gap-2">
-                    <span class="text-xs font-bold text-slate-500 uppercase self-center">Team</span>
-                    <button onclick="setTeam('A')"
-                        class="team-btn px-3 py-1 text-xs border rounded bg-indigo-50 text-indigo-700 border-indigo-200 font-bold">A조</button>
-                    <button onclick="setTeam('B')"
-                        class="team-btn px-3 py-1 text-xs border rounded text-slate-500">B조</button>
-                    <button onclick="setTeam('C')"
-                        class="team-btn px-3 py-1 text-xs border rounded text-slate-500">C조</button>
-                    <button onclick="setTeam('DAY_ONLY')"
-                        class="team-btn px-3 py-1 text-xs border rounded text-slate-500">주간</button>
+            <div class="px-6 pb-4 pt-2">
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                    <!-- Date -->
+                    <div class="md:col-span-2">
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Date</label>
+                        <div class="flex space-x-2">
+                            <select id="yearSelect" class="block w-full pl-2 pr-6 py-1.5 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-md focus:ring-1 focus:ring-indigo-500 cursor-pointer">
+                                <option value="2025">2025년</option><option value="2026" selected>2026년</option><option value="2027">2027년</option><option value="2028">2028년</option><option value="2029">2029년</option><option value="2030">2030년</option>
+                            </select>
+                            <select id="monthSelect" class="block w-full pl-2 pr-6 py-1.5 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-md focus:ring-1 focus:ring-indigo-500 cursor-pointer"></select>
+                        </div>
+                    </div>
+                    <!-- Nav -->
+                    <div class="md:col-span-2 flex justify-start gap-1">
+                        <button onclick="changeMonth(-1)" class="p-1.5 bg-white border border-slate-200 hover:bg-slate-50 rounded text-slate-600 transition-colors shadow-sm"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                        <button onclick="changeMonth(1)" class="p-1.5 bg-indigo-600 hover:bg-indigo-700 rounded text-white shadow-md shadow-indigo-200 transition-colors"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                    </div>
+                    <!-- Pattern -->
+                    <div class="md:col-span-3">
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Pattern</label>
+                        <select id="cycleType" onchange="renderCalendar()" class="block w-full pl-2 pr-6 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md focus:ring-1 focus:ring-indigo-500 cursor-pointer">
+                            <option value="3" selected>4근무 2휴무 (주4-휴2-야4-휴2)</option>
+                            <option value="2">2근무 2휴무 (주주-야야-비비)</option>
+                            <option value="1">2근무 1휴무 (주-야-비)</option>
+                        </select>
+                    </div>
+                    <!-- Team -->
+                    <div id="teamSelectContainer" class="hidden md:col-span-5">
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Team Select</label>
+                        <div class="flex bg-slate-100 p-0.5 rounded-md">
+                            <button onclick="setTeamFilter('A')" id="btn-A" class="flex-1 py-1 text-xs font-medium rounded transition-all">A조</button>
+                            <button onclick="setTeamFilter('B')" id="btn-B" class="flex-1 py-1 text-xs font-medium rounded transition-all">B조</button>
+                            <button onclick="setTeamFilter('C')" id="btn-C" class="flex-1 py-1 text-xs font-medium rounded transition-all">C조</button>
+                            <button onclick="setTeamFilter('DAY_ONLY')" id="btn-DAY_ONLY" class="flex-1 py-1 text-xs font-medium rounded transition-all">주간</button>
+                        </div>
+                    </div>
+                    <div id="teamSelectPlaceholder" class="hidden md:block md:col-span-5"></div>
                 </div>
             </div>
         </div>
 
-        <!-- Main Content -->
-        <div id="calendarContainer">
-            <div id="calendarHeader"
-                class="grid grid-cols-7 text-center text-xs font-bold text-slate-500 py-2 bg-slate-50 rounded-t-xl border border-slate-200 border-b-0">
-                <div class="text-red-500">SUN</div>
-                <div>MON</div>
-                <div>TUE</div>
-                <div>WED</div>
-                <div>THU</div>
-                <div>FRI</div>
-                <div class="text-blue-500">SAT</div>
-            </div>
-            <div id="calendar" class="calendar-grid border border-slate-200"></div>
+        <!-- Legend -->
+        <div class="flex flex-wrap justify-center gap-4 mb-4">
+            <div class="flex items-center text-xs font-medium text-slate-600"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 mr-1.5 shadow-sm"></span>주간</div>
+            <div class="flex items-center text-xs font-medium text-slate-600"><span class="w-2.5 h-2.5 rounded-full bg-indigo-500 mr-1.5 shadow-sm"></span>야간</div>
+            <div class="flex items-center text-xs font-medium text-slate-600"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 mr-1.5 shadow-sm"></span>주휴(초록)</div>
+            <div class="flex items-center text-xs font-medium text-slate-600"><span class="w-2.5 h-2.5 rounded-full bg-slate-400 mr-1.5 shadow-sm"></span>무휴(회색)</div>
+            <div class="flex items-center text-xs font-medium text-slate-600"><span class="w-2.5 h-2.5 rounded-full bg-red-400 mr-1.5 shadow-sm"></span>유휴(공휴)</div>
         </div>
+
+        <!-- View Container -->
+        <div class="bg-white rounded-xl shadow-soft overflow-hidden border border-slate-200 relative min-h-[400px]">
+            <div id="loadingOverlay" class="loading-overlay hidden">
+                <div class="flex flex-col items-center">
+                    <svg class="animate-spin h-6 w-6 text-indigo-600 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <span class="text-xs font-medium text-slate-500">로딩중...</span>
+                </div>
+            </div>
+            <div id="gridHeader" class="grid grid-cols-7 bg-slate-50 border-b border-slate-200 hidden">
+                <div class="py-3 text-center text-red-500 font-bold text-xs">SUN</div>
+                <div class="py-3 text-center text-slate-600 font-bold text-xs">MON</div>
+                <div class="py-3 text-center text-slate-600 font-bold text-xs">TUE</div>
+                <div class="py-3 text-center text-slate-600 font-bold text-xs">WED</div>
+                <div class="py-3 text-center text-slate-600 font-bold text-xs">THU</div>
+                <div class="py-3 text-center text-slate-600 font-bold text-xs">FRI</div>
+                <div class="py-3 text-center text-blue-500 font-bold text-xs">SAT</div>
+            </div>
+            <div id="calendar" class="min-h-[400px]"></div>
+        </div>
+        
+        <p id="scrollHint" class="text-center text-xs text-slate-400 mt-2 font-medium hidden">
+            <span class="inline-block animate-pulse">← 좌우 스크롤 →</span>
+        </p>
     </div>
 
     <script>
-        // --- UI Logic (Refactored) ---
+        window.dbState = {}; 
         let currentYear = 2026;
-        let currentMonth = 0; // Jan = 0
-        let viewMode = 'CALENDAR';
-        let currentTeam = 'A'; // For Input Mode
-        let calendarFilter = 'ALL'; // New: For Calendar View Mode
-        const BASE_DATE = new Date(2026, 0, 1); // Pattern Base
-
-        // Init UI
-        (function initUI() {
-            // Year
-            const ySel = document.getElementById('yearSelect');
-            for (let y = 2025; y <= 2030; y++) {
-                const opt = new Option(y + '년', y);
-                if (y === 2026) opt.selected = true;
-                ySel.add(opt);
-            }
-            ySel.addEventListener('change', e => {
-                currentYear = parseInt(e.target.value);
-                window.currentYear = currentYear;
-                if (window.changeMonthListener) window.changeMonthListener();
-                renderCalendar();
-            });
-
-            // Month
-            const mSel = document.getElementById('monthSelect');
-            for (let m = 0; m < 12; m++) {
-                const opt = new Option((m + 1) + '월', m);
-                mSel.add(opt);
-            }
-            mSel.addEventListener('change', e => {
-                currentMonth = parseInt(e.target.value);
-                window.currentMonth = currentMonth;
-                if (window.changeMonthListener) window.changeMonthListener();
-                renderCalendar();
-            });
-        })();
-
-        window.setTab = (mode) => {
-            viewMode = mode;
-            document.querySelectorAll('[id^="tab-"]').forEach(b => {
-                if (b.id === `tab-${mode}`) b.className = "px-4 py-2 text-sm font-bold bg-white text-indigo-600 rounded shadow transition";
-                else b.className = "px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-50 transition";
-            });
-
-            const teamFilters = document.getElementById('teamFilters');
-            const calHeader = document.getElementById('calendarHeader');
-            const cal = document.getElementById('calendar');
-
-            if (mode === 'TEAM') {
-                teamFilters.classList.remove('hidden');
-                document.getElementById('calendarFilterBox').classList.add('hidden'); // Hide calendar filter
-                calHeader.classList.add('hidden');
-                cal.className = "flex overflow-x-auto gap-2 p-2 bg-slate-100 min-h-[400px]";
-            } else if (mode === 'DETAIL') {
-                teamFilters.classList.add('hidden');
-                document.getElementById('calendarFilterBox').classList.add('hidden'); // Hide calendar filter
-                calHeader.classList.add('hidden');
-                cal.className = "flex overflow-x-auto gap-2 p-2 bg-slate-100 min-h-[400px]";
-            } else {
-                teamFilters.classList.add('hidden');
-                document.getElementById('calendarFilterBox').classList.remove('hidden'); // Show calendar filter
-                calHeader.classList.remove('hidden');
-                cal.className = "calendar-grid border border-slate-200";
-            }
-            renderCalendar();
+        let currentMonth = 0; 
+        let viewMode = 'CALENDAR'; 
+        let currentTeam = 'A'; 
+        const BASE_DATE = new Date(2026, 0, 1);
+        const SHIFT_WORK_HOURS = 10.25; 
+        const DAY_WORK_HOURS = 8.0;     
+        
+        // Holidays
+        const HOLIDAYS = {
+            '2025-01-01': '신정', '2025-01-28': '설날', '2025-01-29': '설날', '2025-01-30': '설날', '2025-03-01': '삼일절', '2025-03-03': '대체공휴일',
+            '2025-05-05': '어린이날', '2025-05-06': '대체공휴일', '2025-06-06': '현충일', '2025-08-15': '광복절', '2025-10-03': '개천절',
+            '2025-10-05': '추석', '2025-10-06': '추석', '2025-10-07': '추석', '2025-10-08': '대체공휴일', '2025-10-09': '한글날', '2025-12-25': '성탄절',
+            '2026-01-01': '신정', '2026-02-16': '설날', '2026-02-17': '설날', '2026-02-18': '설날', '2026-03-01': '삼일절', '2026-03-02': '대체공휴일',
+            '2026-05-05': '어린이날', '2026-05-24': '부처님오신날', '2026-05-25': '대체공휴일', '2026-06-06': '현충일', '2026-08-15': '광복절', '2026-08-17': '대체공휴일',
+            '2026-09-24': '추석', '2026-09-25': '추석', '2026-09-26': '추석', '2026-10-03': '개천절', '2026-10-05': '대체공휴일', '2026-10-09': '한글날',
+            '2026-12-25': '성탄절',
+            '2027-01-01': '신정', '2027-02-06': '설날', '2027-02-07': '설날', '2027-02-08': '설날', '2027-02-09': '대체공휴일', '2027-03-01': '삼일절',
+            '2027-05-05': '어린이날', '2027-05-13': '부처님오신날', '2027-06-06': '현충일', '2027-08-15': '광복절', '2027-08-16': '대체공휴일',
+            '2027-09-14': '추석', '2027-09-15': '추석', '2027-09-16': '추석', '2027-10-03': '개천절', '2027-10-04': '대체공휴일', '2027-10-09': '한글날', '2027-10-11': '대체공휴일', '2027-12-25': '성탄절', '2027-12-27': '대체공휴일',
+            '2028-01-01': '신정', '2028-01-26': '설날', '2028-01-27': '설날', '2028-01-28': '설날', '2028-03-01': '삼일절', '2028-05-02': '부처님오신날', '2028-05-05': '어린이날',
+            '2028-06-06': '현충일', '2028-08-15': '광복절', '2028-10-02': '추석', '2028-10-03': '추석', '2028-10-04': '추석', '2028-10-05': '대체공휴일', '2028-10-09': '한글날', '2028-12-25': '성탄절',
+            '2029-01-01': '신정', '2029-02-12': '설날', '2029-02-13': '설날', '2029-02-14': '설날', '2029-03-01': '삼일절', '2029-05-05': '어린이날', '2029-05-07': '대체공휴일',
+            '2029-05-20': '부처님오신날', '2029-05-21': '대체공휴일', '2029-06-06': '현충일', '2029-08-15': '광복절', '2029-09-21': '추석', '2029-09-22': '추석', '2029-09-23': '추석', '2029-09-24': '대체공휴일',
+            '2029-10-03': '개천절', '2029-10-09': '한글날', '2029-12-25': '성탄절',
+            '2030-01-01': '신정', '2030-02-02': '설날', '2030-02-03': '설날', '2030-02-04': '설날', '2030-02-05': '대체공휴일', '2030-03-01': '삼일절', '2030-05-05': '어린이날', '2030-05-06': '대체공휴일',
+            '2030-05-09': '부처님오신날', '2030-06-06': '현충일', '2030-08-15': '광복절', '2030-09-11': '추석', '2030-09-12': '추석', '2030-09-13': '추석', '2030-10-03': '개천절', '2030-10-09': '한글날', '2030-12-25': '성탄절'
         };
 
-        window.setCalendarFilter = (val) => {
-            calendarFilter = val;
-            renderCalendar();
+        const SHIFT_TYPES = {
+            DAY: { label: '주간', color: 'bg-amber-50 text-amber-700', border: 'border-amber-200', badge: 'bg-amber-100 text-amber-800 ring-1 ring-amber-200' },
+            NIGHT: { label: '야간', color: 'bg-indigo-50 text-indigo-700', border: 'border-indigo-200', badge: 'bg-indigo-100 text-indigo-800 ring-1 ring-indigo-200' },
+            JU_HYU: { label: '무휴', color: 'bg-slate-50 text-slate-500', border: 'border-slate-200', badge: 'bg-slate-100 text-slate-600 ring-1 ring-slate-200' }, 
+            MU_HYU: { label: '주휴', color: 'bg-emerald-50 text-emerald-700', border: 'border-emerald-200', badge: 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200' },
+            YU_HYU: { label: '유휴', color: 'bg-red-50 text-red-700', border: 'border-red-200', badge: 'bg-red-100 text-red-800 ring-1 ring-red-200' }   
         };
-
-        window.setTeam = (team) => {
-            currentTeam = team;
-            document.querySelectorAll('.team-btn').forEach(b => {
-                if (b.textContent.includes(team === 'DAY_ONLY' ? '주간' : team)) {
-                    b.className = "team-btn px-3 py-1 text-xs border rounded bg-indigo-50 text-indigo-700 border-indigo-200 font-bold transition";
-                } else {
-                    b.className = "team-btn px-3 py-1 text-xs border rounded text-slate-500 hover:bg-slate-50 transition";
-                }
-            });
-            renderCalendar();
-        };
-
-        window.moveMonth = (delta) => {
-            let newM = currentMonth + delta;
-            let newY = currentYear;
-            if (newM > 11) { newM = 0; newY++; }
-            else if (newM < 0) { newM = 11; newY--; }
-
-            currentYear = newY;
-            currentMonth = newM;
-            document.getElementById('yearSelect').value = newY;
-            document.getElementById('monthSelect').value = newM;
-
-            window.currentYear = currentYear;
-            window.currentMonth = currentMonth;
-            if (window.changeMonthListener) window.changeMonthListener();
-            renderCalendar();
-        };
-
-        // --- Core Render Logic ---
-        window.renderCalendar = () => {
-            if (!window.isConfigLoaded) return; // Wait for config
-
-            const cont = document.getElementById('calendar');
-            cont.innerHTML = '';
-
-            const firstDay = new Date(currentYear, currentMonth, 1);
-            const lastDay = new Date(currentYear, currentMonth + 1, 0);
-
-            // Calendar View empty slots
-            if (viewMode === 'CALENDAR') {
-                for (let i = 0; i < firstDay.getDay(); i++) {
-                    cont.appendChild(document.createElement('div'));
-                }
-            }
-
-            for (let d = 1; d <= lastDay.getDate(); d++) {
-                const date = new Date(currentYear, currentMonth, d);
-                const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-
-                // Logic vars
-                const isHoliday = !!window.HOLIDAYS[dateStr];
-                const holidayName = window.HOLIDAYS[dateStr] || '';
-                const shifts = calculateShifts(date, isHoliday);
-
-                // DOM Gen
-                const card = document.createElement('div');
-                card.className = viewMode === 'CALENDAR' ? 'calendar-day p-1 border-t border-r border-slate-100 flex flex-col' : 'day-card flex-shrink-0 w-40 flex flex-col';
-
-                // Header
-                const dayOfWeek = date.getDay();
-                let color = "text-slate-700";
-                if (dayOfWeek === 0 || isHoliday) color = "text-red-500";
-                else if (dayOfWeek === 6) color = "text-blue-500";
-
-                card.innerHTML = `
-                    <div class="flex justify-between items-start mb-1 p-1">
-                        <span class="text-xs font-bold ${color}">${d}</span>
-                        ${holidayName ? `<span class="text-[9px] text-red-500 truncate max-w-[50px]">${holidayName}</span>` : ''}
-                    </div>
-                `;
-
-                // Content
-                const body = document.createElement('div');
-                body.className = "flex-1 flex flex-col gap-1 p-1";
-
-                if (viewMode === 'CALENDAR') {
-                    const teamsToShow = (calendarFilter === 'ALL') ? ['A', 'B', 'C', 'DAY_ONLY'] : [calendarFilter];
-                    let html = '';
-
-                    teamsToShow.forEach(team => {
-                        const myShift = shifts[team];
-                        const label = team === 'DAY_ONLY' ? '주간' : team + '조';
-
-                        // Compact Badge Style
-                        html += `<div class="flex justify-between items-center text-[10px] px-1.5 py-0.5 rounded border mb-0.5 ${getShiftColor(myShift.label)} bg-slate-50/50">
-                            <span class="text-slate-400 font-medium mr-1">${label}</span>
-                            <span class="font-bold">${myShift.label}</span>
-                         </div>`;
-                    });
-                    body.innerHTML = html;
-                } else {
-                    // TEAM or DETAIL view
-                    const teams = viewMode === 'TEAM' ? [currentTeam] : ['A', 'B', 'C', 'DAY_ONLY'];
-                    teams.forEach(t => {
-                        const s = shifts[t];
-                        const members = window.TEAM_MEMBERS[t] || [];
-                        const teamLabel = t === 'DAY_ONLY' ? '주간' : t + '조';
-
-                        const section = document.createElement('div');
-                        section.className = "text-[10px] mb-1 font-bold text-slate-500 uppercase";
-                        section.innerHTML = `<div class="flex justify-between items-center bg-slate-50 px-1 py-0.5 rounded mb-1 border border-slate-100">
-                                <span>${teamLabel}</span>
-                                <span class="${getShiftColor(s.label)}">${s.label}</span>
-                             </div>`;
-
-                        const isLocked = date < new Date().setHours(0, 0, 0, 0);
-
-                        members.forEach((initialName, idx) => {
-                            const wrapper = createInputWrapper(dateStr, idx, t, initialName, isLocked);
-                            section.appendChild(wrapper);
-                        });
-                        body.appendChild(section);
-                    });
-
-                    if (dayOfWeek === 0) { // Sunday Summary
-                        const summary = document.createElement('div');
-                        summary.className = "mt-2 p-2 bg-slate-50 border rounded shadow-sm text-xs";
-                        summary.innerHTML = `<div class="font-bold text-indigo-600 mb-1">📅 ${currentMonth + 1}월 ${Math.ceil(date.getDate() / 7)}주차 주간 합계</div>`;
-
-                        teams.forEach(t => {
-                            const slots = calculateWeeklyWorkerStats(date, t);
-                            const tLabel = t === 'DAY_ONLY' ? '주간' : t + '조';
-                            summary.innerHTML += `<div class="font-bold text-[10px] text-slate-400 mt-1">${tLabel}</div>`;
-                            slots.forEach(slot => {
-                                if (!slot.name) return;
-                                const isOver = slot.hours > 52;
-                                summary.innerHTML += `
-                                    <div class="flex justify-between px-1">
-                                        <span class="truncate w-16">${slot.name}</span>
-                                        <span class="${isOver ? 'text-red-500 font-bold' : 'text-slate-600'}">${slot.hours}h</span>
-                                    </div>
-                                 `;
-                            });
-                        });
-                        body.appendChild(summary);
-                    }
-                }
-
-                card.appendChild(body);
-                cont.appendChild(card);
-            }
-        };
-
-        const SHIFT_WORK_HOURS = 10.25;
-        const DAY_WORK_HOURS = 8.0;
 
         const ATTENDANCE_OPTIONS = [
             { value: '', label: '정상', color: 'text-slate-500' },
-            { value: '연차', label: '연차', color: 'text-rose-600 font-bold' },
-            { value: '반차', label: '반차', color: 'text-blue-600 font-bold' },
-            { value: '조퇴', label: '조퇴', color: 'text-amber-600 font-bold' },
-            { value: '지각', label: '지각', color: 'text-purple-600 font-bold' },
+            { value: '연차', label: '연차', color: 'text-red-500 font-bold' },
+            { value: '반차', label: '반차', color: 'text-blue-500 font-bold' },
+            { value: '조퇴', label: '조퇴', color: 'text-yellow-600 font-bold' },
+            { value: '지각', label: '지각', color: 'text-purple-500 font-bold' },
             { value: '교육', label: '교육', color: 'text-green-600 font-bold' },
             { value: '훈련', label: '훈련', color: 'text-indigo-600 font-bold' },
             { value: '특근', label: '특근', color: 'text-pink-600 font-bold' },
             { value: '기타', label: '기타', color: 'text-gray-600 font-bold' }
         ];
 
-        // --- Helpers ---
+        window.TEAM_MEMBERS = {
+            'A': ['박영남', '홍성민', '김정국', '김도훈2', '이민정', '조명주', ''],
+            'B': ['오영석', '이동웅', '김윤수', '주정호', '박소희', '조미형', '송보란'],
+            'C': ['정인철', '김도영', '이은혁', '최용', '전수진', '김지혜2', ''],
+            'DAY_ONLY': ['신화동', '임현규', '김민솔', '']
+        };
+
+        const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+
         function getDbValue(key) {
             const parts = key.split('_');
-            const dateStr = (parts[1] === 'ot' || parts[1] === 'type') ? parts[3] : parts[2];
-            const mKey = dateStr.substring(0, 7);
-            if (window.rosterData[mKey] && window.rosterData[mKey][key] !== undefined) return window.rosterData[mKey][key];
+            let dateStr = '';
+            if (parts[1] === 'ot' || parts[1] === 'type') dateStr = parts[3];
+            else dateStr = parts[2];
+            const monthKey = dateStr.substring(0, 7);
+            
+            if (window.rosterData[monthKey] && window.rosterData[monthKey].hasOwnProperty(key)) {
+                return window.rosterData[monthKey][key];
+            }
             return undefined;
         }
 
+        function init() {
+            lucide.createIcons();
+            const monthSelect = document.getElementById('monthSelect');
+            for(let i=0; i<12; i++) {
+                const opt = document.createElement('option');
+                opt.value = i;
+                opt.text = `${i+1}월`;
+                monthSelect.appendChild(opt);
+            }
+            
+            document.getElementById('yearSelect').addEventListener('change', (e) => {
+                currentYear = parseInt(e.target.value);
+                window.currentYear = currentYear; 
+                if (window.changeMonthListener) window.changeMonthListener();
+                renderCalendar();
+            });
+            
+            monthSelect.addEventListener('change', (e) => {
+                currentMonth = parseInt(e.target.value);
+                window.currentMonth = currentMonth; 
+                if (window.changeMonthListener) window.changeMonthListener();
+                renderCalendar();
+            });
+
+            window.currentYear = currentYear;
+            window.currentMonth = currentMonth;
+            window.renderCalendar = renderCalendar;
+
+            switchMainTab('CALENDAR');
+        }
+
+        function switchMainTab(mode) {
+            viewMode = mode;
+            
+            ['CALENDAR', 'TEAM', 'DETAIL'].forEach(m => {
+                const tab = document.getElementById(`tab-${m}`);
+                if (m === mode) {
+                    tab.className = "main-tab active";
+                } else {
+                    tab.className = "main-tab inactive";
+                }
+            });
+
+            const teamSelect = document.getElementById('teamSelectContainer');
+            const placeholder = document.getElementById('teamSelectPlaceholder');
+            
+            if (mode === 'TEAM') {
+                teamSelect.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+                updateTeamButtons();
+            } else {
+                teamSelect.classList.add('hidden');
+                placeholder.classList.remove('hidden');
+            }
+
+            renderCalendar();
+        }
+
+        function setTeamFilter(team) {
+            currentTeam = team;
+            updateTeamButtons();
+            renderCalendar();
+        }
+
+        function updateTeamButtons() {
+            ['A', 'B', 'C', 'DAY_ONLY'].forEach(t => {
+                const btn = document.getElementById(`btn-${t}`);
+                if (t === currentTeam) {
+                    btn.className = "flex-1 py-1 text-xs font-bold rounded-md transition-all bg-white text-indigo-600 shadow-sm border border-slate-200";
+                } else {
+                    btn.className = "flex-1 py-1 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700 hover:bg-white/50";
+                }
+            });
+        }
+
+        function changeMonth(delta) {
+            currentMonth += delta;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+                const yearSelect = document.getElementById('yearSelect');
+                if (yearSelect.querySelector(`option[value="${currentYear}"]`)) {
+                    yearSelect.value = currentYear;
+                }
+            } else if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+                const yearSelect = document.getElementById('yearSelect');
+                if (yearSelect.querySelector(`option[value="${currentYear}"]`)) {
+                    yearSelect.value = currentYear;
+                }
+            }
+            document.getElementById('monthSelect').value = currentMonth;
+            
+            window.currentYear = currentYear;
+            window.currentMonth = currentMonth;
+            
+            if (window.changeMonthListener) window.changeMonthListener();
+            
+            renderCalendar();
+        }
+
+        function getHolidayName(dateStr) {
+            return HOLIDAYS[dateStr] || null;
+        }
+
+        function getShiftForDate(date) {
+            const cycleType = document.getElementById('cycleType').value;
+            const diffTime = date.getTime() - BASE_DATE.getTime();
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            
+            const dateStr = `${date.getFullYear()}-${(date.getMonth()+1).toString().padStart(2,'0')}-${date.getDate().toString().padStart(2,'0')}`;
+            const isHoliday = !!HOLIDAYS[dateStr];
+
+            let shifts = { A: null, B: null, C: null, DAY_ONLY: null };
+
+            if (cycleType === '1') {
+                const cIndex = ((diffDays + 0) % 3 + 3) % 3;
+                const bIndex = ((diffDays + 1) % 3 + 3) % 3;
+                const aIndex = ((diffDays + 2) % 3 + 3) % 3;
+                const getShift = (idx) => {
+                    if (idx === 0) return SHIFT_TYPES.DAY;
+                    if (idx === 1) return SHIFT_TYPES.NIGHT;
+                    return SHIFT_TYPES.JU_HYU; 
+                };
+                shifts.C = getShift(cIndex);
+                shifts.B = getShift(bIndex);
+                shifts.A = getShift(aIndex);
+            } else if (cycleType === '2') {
+                shifts.A = getShiftFrom6DayCycle(((diffDays + 5) % 6 + 6) % 6);
+                shifts.C = getShiftFrom6DayCycle(((diffDays + 1) % 6 + 6) % 6);
+                shifts.B = getShiftFrom6DayCycle(((diffDays + 3) % 6 + 6) % 6);
+            } else if (cycleType === '3') {
+                shifts.A = getShiftFrom12DayCycle(((diffDays + 11) % 12 + 12) % 12);
+                shifts.B = getShiftFrom12DayCycle(((diffDays + 7) % 12 + 12) % 12);
+                shifts.C = getShiftFrom12DayCycle(((diffDays + 3) % 12 + 12) % 12);
+            }
+
+            const dayOfWeek = date.getDay();
+            
+            if (isHoliday) {
+                shifts.DAY_ONLY = SHIFT_TYPES.YU_HYU; 
+            } else {
+                if (dayOfWeek === 0) shifts.DAY_ONLY = SHIFT_TYPES.MU_HYU;      
+                else if (dayOfWeek === 6) shifts.DAY_ONLY = SHIFT_TYPES.JU_HYU; 
+                else shifts.DAY_ONLY = SHIFT_TYPES.DAY;                         
+            }
+
+            return shifts;
+        }
+
+        function getShiftFrom6DayCycle(index) {
+            if (index === 0 || index === 1) return SHIFT_TYPES.DAY;
+            if (index === 2 || index === 3) return SHIFT_TYPES.NIGHT;
+            if (index === 4) return SHIFT_TYPES.JU_HYU; 
+            return SHIFT_TYPES.MU_HYU; 
+        }
+
+        function getShiftFrom12DayCycle(index) {
+            if (index >= 0 && index <= 3) return SHIFT_TYPES.DAY; 
+            if (index >= 6 && index <= 9) return SHIFT_TYPES.NIGHT; 
+            if (index === 4 || index === 10) return SHIFT_TYPES.JU_HYU; 
+            if (index === 5 || index === 11) return SHIFT_TYPES.MU_HYU; 
+            return SHIFT_TYPES.MU_HYU; 
+        }
+
         function calculateWeeklyWorkerStats(sundayDate, targetTeam) {
-            const memberCount = (window.TEAM_MEMBERS[targetTeam] || []).length || 7;
+            const memberCount = (targetTeam === 'DAY_ONLY') ? 4 : 7;
             const slots = [];
-            for (let k = 0; k < memberCount; k++) slots.push({ name: '', hours: 0 });
+            for(let k=0; k<memberCount; k++) slots.push({ name: '', hours: 0 });
 
             for (let i = 6; i >= 0; i--) {
                 const d = new Date(sundayDate);
                 d.setDate(d.getDate() - i);
-                const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
+                const dateStr = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`;
+                
                 let dailyBaseHours = 0;
+                
                 if (targetTeam === 'DAY_ONLY') {
-                    if (window.HOLIDAYS[dateStr]) dailyBaseHours = 0;
-                    else {
+                    if (HOLIDAYS[dateStr]) {
+                        dailyBaseHours = 0; 
+                    } else {
                         const dayOfWeek = d.getDay();
-                        if (dayOfWeek === 0 || dayOfWeek === 6) dailyBaseHours = 0;
-                        else dailyBaseHours = DAY_WORK_HOURS;
+                        if (dayOfWeek === 0 || dayOfWeek === 6) {
+                            dailyBaseHours = 7.5; 
+                        } else {
+                            dailyBaseHours = DAY_WORK_HOURS; 
+                        }
                     }
                 } else {
                     dailyBaseHours = SHIFT_WORK_HOURS;
-                    const shifts = calculateShifts(d, !!window.HOLIDAYS[dateStr]);
-                    const s = shifts[targetTeam];
-                    if (s.label === '무휴' || s.label === '주휴' || s.label === '휴무') dailyBaseHours = 0;
                 }
 
                 for (let slot = 0; slot < memberCount; slot++) {
-                    const valKey = `memo_${targetTeam}_${dateStr}_${slot}`;
-                    const otKey = `memo_ot_${targetTeam}_${dateStr}_${slot}`;
-                    const nameVal = getDbValue(valKey);
-                    const defaultName = window.TEAM_MEMBERS[targetTeam] ? window.TEAM_MEMBERS[targetTeam][slot] : '';
-                    const name = nameVal !== undefined ? nameVal : defaultName;
-                    const ot = parseFloat(getDbValue(otKey)) || 0;
+                    const nameVal = getMemo(dateStr, slot, targetTeam);
+                    const name = typeof nameVal === 'string' ? nameVal.trim() : '';
+                    const ot = parseFloat(getMemoOT(dateStr, slot, targetTeam)) || 0;
 
                     if (name) {
-                        slots[slot].name = name;
+                        slots[slot].name = name; 
                         slots[slot].hours += dailyBaseHours + ot;
                     }
                 }
@@ -624,104 +603,400 @@
             return slots;
         }
 
-        function createInputWrapper(dateStr, idx, targetTeam, initialName, isLocked) {
-            const valKey = `memo_${targetTeam}_${dateStr}_${idx}`;
-            const typeKey = `memo_type_${targetTeam}_${dateStr}_${idx}`;
-            const otKey = `memo_ot_${targetTeam}_${dateStr}_${idx}`;
+        function saveMemo(dateStr, index, value, team) {
+            const targetTeam = team || currentTeam;
+            const key = `memo_${targetTeam}_${dateStr}_${index}`;
+            if (window.saveToDb) window.saveToDb(key, value);
+            else if (!window.dbState) { window.dbState = {}; window.dbState[key] = value; }
+            updateAllSummaries();
+        }
 
-            let dbVal = getDbValue(valKey);
-            let displayVal = dbVal !== undefined ? dbVal : initialName;
-            let typeVal = getDbValue(typeKey) || '';
-            let otVal = getDbValue(otKey) || '';
+        function getMemo(dateStr, index, team) {
+            const targetTeam = team || currentTeam;
+            const key = `memo_${targetTeam}_${dateStr}_${index}`;
+            
+            const dbVal = getDbValue(key);
+            if (dbVal !== undefined) return dbVal;
 
-            const wrapper = document.createElement('div');
-            wrapper.className = "flex gap-1 items-center mb-1 bg-white rounded p-0.5 border border-slate-100";
+            if (window.TEAM_MEMBERS[targetTeam] && window.TEAM_MEMBERS[targetTeam][index]) {
+                const [y, m, d] = dateStr.split('-').map(Number);
+                const date = new Date(y, m - 1, d);
+                const shifts = getShiftForDate(date);
+                const myShift = shifts[targetTeam];
+                
+                if (myShift === SHIFT_TYPES.JU_HYU || myShift === SHIFT_TYPES.MU_HYU || myShift === SHIFT_TYPES.YU_HYU) {
+                    return '';
+                }
+                return window.TEAM_MEMBERS[targetTeam][index];
+            }
+            return '';
+        }
 
-            // Name
-            const input = document.createElement('input');
-            input.className = `flex-1 min-w-[60px] text-xs h-6 border rounded px-1 ${isLocked ? 'bg-slate-50 text-slate-400' : 'bg-white'}`;
-            input.value = displayVal;
-            input.disabled = isLocked;
-            input.placeholder = "이름";
-            input.onchange = (e) => window.saveToDb(valKey, e.target.value);
-            wrapper.appendChild(input);
+        function saveMemoType(dateStr, index, value, team) {
+            const targetTeam = team || currentTeam;
+            const typeKey = `memo_type_${targetTeam}_${dateStr}_${index}`;
+            const nameKey = `memo_${targetTeam}_${dateStr}_${index}`;
 
-            // Type Select
-            const sel = document.createElement('select');
-            sel.className = `w-[50px] text-[10px] h-6 border rounded px-0 ${isLocked ? 'bg-slate-50' : 'bg-white'} truncate`;
-            sel.disabled = isLocked;
-            ATTENDANCE_OPTIONS.forEach(opt => {
-                const o = document.createElement('option');
-                o.value = opt.value;
-                o.text = opt.label;
-                if (opt.value === typeVal) o.selected = true;
-                sel.appendChild(o);
+            if (window.saveToDb) window.saveToDb(typeKey, value);
+
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const date = new Date(y, m - 1, d);
+            const shifts = getShiftForDate(date);
+            const myShift = shifts[targetTeam];
+            const isOffDay = (myShift === SHIFT_TYPES.JU_HYU || myShift === SHIFT_TYPES.MU_HYU || myShift === SHIFT_TYPES.YU_HYU);
+            
+            const defaultName = window.TEAM_MEMBERS[targetTeam] && window.TEAM_MEMBERS[targetTeam][index] ? window.TEAM_MEMBERS[targetTeam][index] : '';
+
+            if (value === '연차') {
+                if (window.saveToDb) window.saveToDb(nameKey, '');
+            } else if (value === '특근') {
+                if (window.saveToDb) window.saveToDb(nameKey, defaultName);
+            } else if (value === '') { 
+                if (isOffDay) {
+                    if (window.saveToDb) window.saveToDb(nameKey, '');
+                } else {
+                    if (window.saveToDb) window.saveToDb(nameKey, defaultName);
+                }
+            } else {
+                if (window.saveToDb) window.saveToDb(nameKey, defaultName);
+            }
+
+            renderCalendar();
+        }
+
+        function getMemoType(dateStr, index, team) {
+            const targetTeam = team || currentTeam;
+            const key = `memo_type_${targetTeam}_${dateStr}_${index}`;
+            const val = getDbValue(key);
+            return val === undefined ? '' : val;
+        }
+
+        function saveMemoOT(dateStr, index, value, team) {
+            const targetTeam = team || currentTeam;
+            const key = `memo_ot_${targetTeam}_${dateStr}_${index}`;
+            if (window.saveToDb) window.saveToDb(key, value);
+            updateAllSummaries();
+        }
+
+        function getMemoOT(dateStr, index, team) {
+            const targetTeam = team || currentTeam;
+            const key = `memo_ot_${targetTeam}_${dateStr}_${index}`;
+            return getDbValue(key); 
+        }
+
+        function updateAllSummaries() {
+            const summaryCards = document.querySelectorAll('.summary-container');
+            summaryCards.forEach(card => {
+                const sundayDateStr = card.dataset.sunday;
+                const sundayDate = new Date(sundayDateStr);
+                const contentDiv = card.querySelector('.summary-content');
+                
+                if (viewMode === 'DETAIL') {
+                    let combinedHtml = '';
+                    ['A', 'B', 'C', 'DAY_ONLY'].forEach(team => {
+                        const slots = calculateWeeklyWorkerStats(sundayDate, team);
+                        const teamName = team === 'DAY_ONLY' ? '주간' : team + '조';
+                        combinedHtml += `
+                            <div class="mb-1">
+                                <div class="font-bold text-[10px] text-slate-500 uppercase tracking-wider mb-0.5 flex items-center">
+                                    <span class="w-1 h-1 rounded-full bg-slate-400 mr-1"></span>
+                                    ${teamName}
+                                </div>
+                                ${generateSummaryHTML(slots)}
+                            </div>`;
+                    });
+                     contentDiv.innerHTML = combinedHtml;
+                } else if (viewMode === 'TEAM') {
+                    const slots = calculateWeeklyWorkerStats(sundayDate, currentTeam);
+                    contentDiv.innerHTML = generateSummaryHTML(slots);
+                }
             });
-            const updateColor = () => {
-                const opt = ATTENDANCE_OPTIONS.find(o => o.value === sel.value);
-                if (opt) sel.className = `w-[50px] text-[10px] h-6 border rounded px-0 ${isLocked ? 'bg-slate-50' : 'bg-white'} truncate ${opt.color}`;
-            };
-            updateColor();
-            sel.onchange = (e) => {
-                window.saveToDb(typeKey, e.target.value);
-                updateColor();
-            };
-            wrapper.appendChild(sel);
+        }
+
+        function generateSummaryHTML(workerList) {
+            let html = `<div class="grid grid-cols-1 gap-1">`;
+            workerList.forEach(worker => {
+                const name = worker.name || '';
+                if (!name) {
+                    html += `
+                        <div class="flex justify-between items-center px-2 h-6 rounded border border-dashed border-slate-200 bg-slate-50/50">
+                            <span class="text-xs text-slate-300">-</span>
+                        </div>
+                    `;
+                } else {
+                    const hours = worker.hours;
+                    const isOvertime = hours > 52;
+                    const hoursClass = isOvertime ? "text-rose-600 font-bold" : "text-slate-700 font-semibold";
+                    const bgClass = isOvertime ? "bg-rose-50 border-rose-100" : "bg-white border-slate-100 hover:bg-slate-50";
+                    
+                    html += `
+                        <div class="flex justify-between items-center px-2 h-6 rounded border ${bgClass} text-xs transition-colors shadow-sm">
+                            <span class="text-slate-600 truncate max-w-[80px]">${name}</span>
+                            <span class="${hoursClass}">${hours}h</span>
+                        </div>
+                    `;
+                }
+            });
+            html += `</div>`;
+            return html;
+        }
+
+        function renderCalendar() {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (window.isFirebaseLoaded === false && window.hasFirebaseConfig) {
+                 if (loadingOverlay) loadingOverlay.classList.remove('hidden');
+            } else {
+                 if (loadingOverlay) loadingOverlay.classList.add('hidden');
+            }
+
+            const container = document.getElementById('calendar');
+            const gridHeader = document.getElementById('gridHeader');
+            const scrollHint = document.getElementById('scrollHint');
+            container.innerHTML = '';
+
+            const firstDay = new Date(currentYear, currentMonth, 1);
+            const lastDay = new Date(currentYear, currentMonth + 1, 0);
+
+            if (viewMode === 'CALENDAR') {
+                container.className = 'calendar-grid';
+                gridHeader.classList.remove('hidden');
+                scrollHint.classList.add('hidden');
+
+                for (let i = 0; i < firstDay.getDay(); i++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'calendar-day bg-slate-100/50';
+                    container.appendChild(cell);
+                }
+
+                for (let d = 1; d <= lastDay.getDate(); d++) {
+                    const date = new Date(currentYear, currentMonth, d);
+                    const dayOfWeek = date.getDay();
+                    const dateStr = `${currentYear}-${(currentMonth+1).toString().padStart(2,'0')}-${d.toString().padStart(2,'0')}`;
+                    const shifts = getShiftForDate(date);
+                    const holidayName = getHolidayName(dateStr);
+                    
+                    const cell = document.createElement('div');
+                    cell.className = 'calendar-day p-1.5 flex flex-col relative border-t border-r border-slate-100';
+                    
+                    let numClass = "text-xs font-bold mb-0.5 ";
+                    let isRedDay = dayOfWeek === 0 || holidayName;
+                    
+                    if (isRedDay) numClass += "text-rose-500";
+                    else if (dayOfWeek === 6) numClass += "text-blue-500";
+                    else numClass += "text-slate-700";
+
+                    let holidayBadge = holidayName 
+                        ? `<div class="text-[9px] text-rose-500 font-medium truncate mb-0.5">${holidayName}</div>` 
+                        : `<div class="h-3 mb-0.5"></div>`;
+
+                    cell.innerHTML = `
+                        <div class="flex justify-between items-start">
+                            <span class="${numClass}">${d}</span>
+                        </div>
+                        ${holidayBadge}
+                        <div class="flex-1 flex flex-col justify-center gap-1">
+                            ${generateCompactShiftHtml(shifts)}
+                        </div>
+                    `;
+                    container.appendChild(cell);
+                }
+
+            } else {
+                container.className = 'horizontal-scroll-container bg-slate-100/50';
+                gridHeader.classList.add('hidden');
+                scrollHint.classList.remove('hidden');
+
+                for (let d = 1; d <= lastDay.getDate(); d++) {
+                    const date = new Date(currentYear, currentMonth, d);
+                    const dayOfWeek = date.getDay();
+                    const dateStr = `${currentYear}-${(currentMonth+1).toString().padStart(2,'0')}-${d.toString().padStart(2,'0')}`;
+                    const shifts = getShiftForDate(date);
+                    const holidayName = getHolidayName(dateStr);
+
+                    const card = document.createElement('div');
+                    
+                    let dateColor = "text-slate-700";
+                    let bgColor = "bg-white";
+                    
+                    let isRedDay = dayOfWeek === 0 || holidayName;
+
+                    if (isRedDay) { dateColor = "text-rose-600"; bgColor = "bg-rose-50/30"; }
+                    else if (dayOfWeek === 6) { dateColor = "text-blue-600"; bgColor = "bg-blue-50/30"; }
+
+                    const header = document.createElement('div');
+                    header.className = `p-2 border-b border-slate-100 flex justify-between items-center ${bgColor} date-box`;
+                    
+                    let dateDisplay = `<div class="flex flex-col"><div class="font-bold ${dateColor} text-sm">${(currentMonth+1)}.${d} <span class="text-[10px] font-normal text-slate-400 ml-0.5">(${DAY_NAMES[dayOfWeek]})</span></div>`;
+                    if (holidayName) dateDisplay += `<div class="text-[9px] text-rose-500 font-bold mt-0.5">${holidayName}</div>`;
+                    dateDisplay += `</div>`;
+
+                    if (viewMode === 'DETAIL') {
+                        card.className = `detail-card`; 
+                        header.innerHTML = dateDisplay;
+                    } else {
+                        const myShift = shifts[currentTeam];
+                        card.className = `day-card`; 
+                        header.innerHTML = `
+                            ${dateDisplay}
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${myShift.badge} shadow-sm self-start mt-0.5">${myShift.label}</span>
+                        `;
+                    }
+                    card.appendChild(header);
+
+                    const body = document.createElement('div');
+                    body.className = "p-2 flex-1 flex flex-col space-y-2 bg-white";
+
+                    const teamsToRender = viewMode === 'DETAIL' ? ['A', 'B', 'C', 'DAY_ONLY'] : [currentTeam];
+
+                    teamsToRender.forEach(targetTeam => {
+                        const targetShift = shifts[targetTeam];
+                        const teamLabel = targetTeam === 'DAY_ONLY' ? '주간' : targetTeam + '조';
+                        
+                        const memberCount = window.TEAM_MEMBERS[targetTeam] ? window.TEAM_MEMBERS[targetTeam].length : 7;
+
+                        if (viewMode === 'DETAIL') {
+                            const sectionContainer = document.createElement('div');
+                            const sectionHeader = `
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">${teamLabel}</span>
+                                    <span class="px-1 py-0.5 rounded text-[9px] font-bold ${targetShift.badge}">${targetShift.label}</span>
+                                </div>
+                            `;
+                            sectionContainer.innerHTML = sectionHeader;
+                            
+                            const groupContainer = document.createElement('div');
+                            groupContainer.className = "space-y-1 pl-1 border-l-2 border-slate-100";
+                            
+                            for (let i = 0; i < memberCount; i++) {
+                                const inputVal = getMemo(dateStr, i, targetTeam);
+                                const otVal = getMemoOT(dateStr, i, targetTeam);
+                                const typeVal = getMemoType(dateStr, i, targetTeam);
+                                const wrapper = createInputWrapper(dateStr, i, targetTeam, inputVal, otVal, typeVal, teamLabel);
+                                groupContainer.appendChild(wrapper);
+                            }
+                            sectionContainer.appendChild(groupContainer);
+                            body.appendChild(sectionContainer);
+                        } else {
+                             const groupContainer = document.createElement('div');
+                             groupContainer.className = "space-y-1";
+                             for (let i = 0; i < memberCount; i++) {
+                                const inputVal = getMemo(dateStr, i, targetTeam);
+                                const otVal = getMemoOT(dateStr, i, targetTeam);
+                                const typeVal = getMemoType(dateStr, i, targetTeam);
+                                const wrapper = createInputWrapper(dateStr, i, targetTeam, inputVal, otVal, typeVal, teamLabel);
+                                groupContainer.appendChild(wrapper);
+                             }
+                             body.appendChild(groupContainer);
+                        }
+                    });
+
+                    card.appendChild(body);
+                    container.appendChild(card);
+
+                    if (dayOfWeek === 0) {
+                        const summary = document.createElement('div');
+                        summary.className = "summary-card summary-container";
+                        summary.dataset.sunday = dateStr;
+
+                        summary.innerHTML = `
+                            <div class="bg-slate-800 text-white p-2 text-center date-box flex flex-col justify-center">
+                                <div class="text-[10px] font-medium text-slate-400 uppercase tracking-widest mb-0.5">Weekly Report</div>
+                                <div class="text-sm font-bold">${date.getMonth()+1}월 ${Math.ceil(date.getDate()/7)}주차</div>
+                            </div>
+                            <div class="flex-1 p-2 summary-content bg-slate-50/50">
+                                <!-- Filled by updateAllSummaries -->
+                            </div>
+                        `;
+                        container.appendChild(summary);
+                    }
+                }
+                
+                updateAllSummaries();
+            }
+        }
+
+        function createInputWrapper(dateStr, i, targetTeam, inputVal, otVal, typeVal, teamLabel) {
+            const wrapper = document.createElement('div');
+            wrapper.className = "flex gap-1 group items-center";
+
+            // Name Input
+            const input = document.createElement('input');
+            input.type = "text";
+            input.className = "flex-1 min-w-0 text-xs h-6 bg-slate-50 border-0 rounded px-2 text-slate-700 placeholder-slate-400 focus:bg-white focus:ring-1 focus:ring-indigo-500/20 transition-all shadow-sm group-hover:bg-white";
+            input.placeholder = `${teamLabel} ${i+1}`;
+            input.value = inputVal;
+            input.addEventListener('input', (e) => saveMemo(dateStr, i, e.target.value, targetTeam));
+            
+            // Attendance Type Select
+            const typeSelect = document.createElement('select');
+            let selectClass = "w-10 text-[9px] h-6 bg-slate-50 border-0 rounded px-0 text-center cursor-pointer focus:ring-1 focus:ring-indigo-500/20 shadow-sm appearance-none group-hover:bg-white tracking-tighter";
+            
+            const selectedOption = ATTENDANCE_OPTIONS.find(opt => opt.value === typeVal);
+            if (selectedOption) {
+                 selectClass += ` ${selectedOption.color}`;
+            } else {
+                 selectClass += ` text-slate-500`; 
+            }
+            
+            typeSelect.className = selectClass;
+
+            ATTENDANCE_OPTIONS.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt.value;
+                option.text = opt.label;
+                if (opt.value === typeVal) option.selected = true;
+                typeSelect.appendChild(option);
+            });
+
+            typeSelect.addEventListener('change', (e) => saveMemoType(dateStr, i, e.target.value, targetTeam));
 
             // OT Input
             const otInput = document.createElement('input');
-            otInput.type = 'number';
-            otInput.className = `w-[35px] text-xs h-6 border rounded px-0 text-center ${isLocked ? 'bg-slate-50' : 'bg-white'}`;
-            otInput.value = otVal;
-            otInput.placeholder = "OT";
-            otInput.disabled = isLocked;
+            otInput.type = "number";
             otInput.step = "0.5";
-            otInput.onchange = (e) => window.saveToDb(otKey, e.target.value);
-            wrapper.appendChild(otInput);
+            otInput.className = "w-9 text-xs h-6 text-center bg-slate-50 border-0 rounded px-0 text-slate-600 font-medium placeholder-slate-400 focus:bg-white focus:ring-1 focus:ring-indigo-500/20 transition-all shadow-sm group-hover:bg-white";
+            otInput.placeholder = "OT";
+            otInput.value = otVal;
+            otInput.addEventListener('input', (e) => saveMemoOT(dateStr, i, e.target.value, targetTeam));
 
+            wrapper.appendChild(input);
+            wrapper.appendChild(typeSelect);
+            wrapper.appendChild(otInput);
             return wrapper;
         }
 
-        function calculateShifts(date, isHoliday) {
-            // Pattern: 4 Day, 2 Off, 4 Night, 2 Off (12 days)
-            // Sequence: D, D, D, D, Mu, Ju, N, N, N, N, Mu, Ju
-            // Indices:  0, 1, 2, 3, 4,  5,  6, 7, 8, 9, 10, 11
-
-            const PATTERN = [
-                '주간', '주간', '주간', '주간', '무휴', '주휴',
-                '야간', '야간', '야간', '야간', '무휴', '주휴'
-            ];
-
-            const diff = Math.floor((date - BASE_DATE) / (86400000));
-
-            // Helper to get pattern index safely
-            const getIdx = (offset) => {
-                let val = (diff + offset) % 12;
-                return (val < 0) ? val + 12 : val;
+        function generateCompactShiftHtml(shifts) {
+            let html = '';
+            const renderItem = (team, type) => {
+                if (team === 'DAY_ONLY') return ''; 
+                return `
+                <div class="flex items-center justify-between px-1.5 py-0.5 rounded text-[9px] ${type.badge} border border-transparent">
+                    <span class="font-bold opacity-80">${type.label}</span>
+                    <span class="font-bold">${team}</span>
+                </div>`;
             };
 
-            const getShift = (idx) => ({ label: PATTERN[idx] });
-
-            // Anchor 2026-01-01: A=JuHyu(5), B=Night(9), C=Day(1)
-            // Offsets derived to match this anchor:
-            return {
-                A: getShift(getIdx(5)),
-                B: getShift(getIdx(9)),
-                C: getShift(getIdx(1)),
-                DAY_ONLY: isHoliday ? { label: '휴일' } : (date.getDay() === 0 ? { label: '주휴' } : { label: '주간' })
-            };
+            for (const [team, type] of Object.entries(shifts)) {
+                if (type === SHIFT_TYPES.DAY) html += renderItem(team, type);
+            }
+            for (const [team, type] of Object.entries(shifts)) {
+                if (type === SHIFT_TYPES.NIGHT) html += renderItem(team, type);
+            }
+            for (const [team, type] of Object.entries(shifts)) {
+                if (type === SHIFT_TYPES.JU_HYU || type === SHIFT_TYPES.MU_HYU || type === SHIFT_TYPES.YU_HYU) html += renderItem(team, type);
+            }
+            return html;
         }
 
-        function getShiftColor(label) {
-            if (label === '주간') return 'text-amber-600';
-            if (label === '야간') return 'text-indigo-600';
-            if (label === '휴무' || label === '무휴') return 'text-slate-500';
-            if (label === '주휴') return 'text-emerald-600';
-            if (label === '휴일') return 'text-red-500';
-            return 'text-slate-700';
-        }
+        init();
 
+        setTimeout(() => {
+            if (window.isFirebaseLoaded === false && window.hasFirebaseConfig) {
+                 console.log("Loading timed out. Forcing offline mode.");
+                 window.isFirebaseLoaded = true;
+                 if (window.renderCalendar) window.renderCalendar();
+            }
+        }, 3000);
     </script>
 </body>
-
 </html>
