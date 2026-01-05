@@ -297,6 +297,19 @@
                     </select>
                 </div>
 
+                <!-- New Calendar Filter -->
+                <div id="calendarFilterBox" class="flex gap-2 items-center">
+                    <span class="text-xs font-bold text-slate-500 uppercase">View</span>
+                    <select id="calendarTeamSelect" onchange="setCalendarFilter(this.value)"
+                        class="border rounded text-xs px-2 py-1 font-bold text-indigo-700">
+                        <option value="ALL">전체 근무조</option>
+                        <option value="A">A조</option>
+                        <option value="B">B조</option>
+                        <option value="C">C조</option>
+                        <option value="DAY_ONLY">주간</option>
+                    </select>
+                </div>
+
                 <div id="teamFilters" class="hidden flex gap-2">
                     <span class="text-xs font-bold text-slate-500 uppercase self-center">Team</span>
                     <button onclick="setTeam('A')"
@@ -333,6 +346,11 @@
         let currentMonth = 0; // Jan = 0
         let viewMode = 'CALENDAR';
         let currentTeam = 'A';
+        let currentYear = 2026;
+        let currentMonth = 0; // Jan = 0
+        let viewMode = 'CALENDAR';
+        let currentTeam = 'A'; // For Input Mode
+        let calendarFilter = 'ALL'; // New: For Calendar View Mode
         const BASE_DATE = new Date(2026, 0, 1); // Pattern Base
 
         // Init UI
@@ -378,17 +396,25 @@
 
             if (mode === 'TEAM') {
                 teamFilters.classList.remove('hidden');
+                document.getElementById('calendarFilterBox').classList.add('hidden'); // Hide calendar filter
                 calHeader.classList.add('hidden');
                 cal.className = "flex overflow-x-auto gap-2 p-2 bg-slate-100 min-h-[400px]";
             } else if (mode === 'DETAIL') {
                 teamFilters.classList.add('hidden');
+                document.getElementById('calendarFilterBox').classList.add('hidden'); // Hide calendar filter
                 calHeader.classList.add('hidden');
                 cal.className = "flex overflow-x-auto gap-2 p-2 bg-slate-100 min-h-[400px]";
             } else {
                 teamFilters.classList.add('hidden');
+                document.getElementById('calendarFilterBox').classList.remove('hidden'); // Show calendar filter
                 calHeader.classList.remove('hidden');
                 cal.className = "calendar-grid border border-slate-200";
             }
+            renderCalendar();
+        };
+
+        window.setCalendarFilter = (val) => {
+            calendarFilter = val;
             renderCalendar();
         };
 
@@ -469,12 +495,20 @@
                 body.className = "flex-1 flex flex-col gap-1 p-1";
 
                 if (viewMode === 'CALENDAR') {
-                    // Show only MY shift badge? No, show current selected team badge?
-                    // Previous logic showed currentTeam badge.
-                    const myShift = shifts[currentTeam];
-                    if (myShift) {
-                        body.innerHTML = `<div class="text-[10px] px-1 rounded border text-center font-bold ${getShiftColor(myShift.label)}">${myShift.label}</div>`;
-                    }
+                    const teamsToShow = (calendarFilter === 'ALL') ? ['A', 'B', 'C', 'DAY_ONLY'] : [calendarFilter];
+                    let html = '';
+
+                    teamsToShow.forEach(team => {
+                        const myShift = shifts[team];
+                        const label = team === 'DAY_ONLY' ? '주간' : team + '조';
+
+                        // Compact Badge Style
+                        html += `<div class="flex justify-between items-center text-[10px] px-1.5 py-0.5 rounded border mb-0.5 ${getShiftColor(myShift.label)} bg-slate-50/50">
+                            <span class="text-slate-400 font-medium mr-1">${label}</span>
+                            <span class="font-bold">${myShift.label}</span>
+                         </div>`;
+                    });
+                    body.innerHTML = html;
                 } else {
                     // TEAM or DETAIL view
                     const teams = viewMode === 'TEAM' ? [currentTeam] : ['A', 'B', 'C', 'DAY_ONLY'];
