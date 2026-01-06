@@ -21,13 +21,13 @@
         // [필수] 2단계: Firebase 설정값 입력
         // ============================================================================
         const myFirebaseConfig = {
-            apiKey: "AIzaSyAE1Foubgt3JAFeG-VSPTbRRZIXNw6zG1Y",
-            authDomain: "interojo-jjtech.firebaseapp.com",
-            projectId: "interojo-jjtech",
-            storageBucket: "interojo-jjtech.firebasestorage.app",
-            messagingSenderId: "697197674132",
-            appId: "1:697197674132:web:ea7a56047dcd9b37947e81",
-            measurementId: "G-PX7ZL4ZSYG"
+            apiKey: "AIzaSyCmBpqXwxI0OdkG9YeR8h2YvhNFovir8Fs",
+            authDomain: "interojo-tech.firebaseapp.com",
+            projectId: "interojo-tech",
+            storageBucket: "interojo-tech.firebasestorage.app",
+            messagingSenderId: "294484133296",
+            appId: "1:294484133296:web:429a662826cabb37a58275",
+            measurementId: "G-87HD7CVN3X"
         };
 
         const myAppId = 'production-roster-2026';
@@ -71,6 +71,7 @@
                     if (u) {
                         user = u;
                         initRealtimeListeners();
+                        loadRemoteConfig();
                     }
                 });
             } catch (e) {
@@ -117,6 +118,29 @@
             });
         }
 
+        async function loadRemoteConfig() {
+            try {
+                // fetch team members
+                const teamDoc = await getDoc(doc(db, 'artifacts', appId, 'config', 'teamMembers'));
+                if (teamDoc.exists()) {
+                    window.TEAM_MEMBERS = teamDoc.data();
+                }
+
+                // fetch holidays
+                const holidayDoc = await getDoc(doc(db, 'artifacts', appId, 'config', 'holidays'));
+                if (holidayDoc.exists()) {
+                    window.HOLIDAYS = holidayDoc.data();
+                }
+
+                // re-render after config load
+                console.log("[Config] Loaded remote configuration");
+                if (window.renderCalendar) window.renderCalendar();
+
+            } catch (e) {
+                console.warn("[Config] Failed to load remote config, using defaults", e);
+            }
+        }
+
         // --- Save Logic ---
         let saveTimeout;
         let pendingChanges = {};
@@ -135,7 +159,23 @@
             pendingChanges[monthKey][key] = value;
 
             const syncStatus = document.getElementById('syncStatus');
+
+            // [Fix] Check Auth status explicitly
+            if (!user) {
+                if (syncStatus) {
+                    syncStatus.style.opacity = '1';
+                    syncStatus.classList.remove('bg-indigo-600');
+                    syncStatus.classList.add('bg-rose-600');
+                    syncStatus.innerHTML = `⚠️ 로그인 필요 (설정확인)`;
+                }
+
+                console.warn("Save cancelled: User not authenticated. Check Firebase Config.");
+                return;
+            }
+
             if (syncStatus) {
+                syncStatus.classList.remove('bg-rose-600');
+                syncStatus.classList.add('bg-indigo-600');
                 syncStatus.style.opacity = '1';
                 syncStatus.innerHTML = `<span class="animate-spin mr-1">↻</span> 저장 중...`;
             }
@@ -163,7 +203,11 @@
                     }
                 } catch (e) {
                     console.error("Save failed:", e);
-                    if (syncStatus) syncStatus.innerText = "저장 실패";
+                    if (syncStatus) {
+                        syncStatus.classList.remove('bg-indigo-600');
+                        syncStatus.classList.add('bg-rose-600');
+                        syncStatus.innerText = "저장 실패 (권한/네트워크)";
+                    }
                 }
             }, 500);
         };
@@ -437,6 +481,8 @@
                         <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Team
                             Select</label>
                         <div class="flex bg-slate-100 p-0.5 rounded-md">
+                            <button onclick="setTeamFilter('ALL')" id="btn-ALL"
+                                class="flex-1 py-1 text-xs font-medium rounded transition-all">전체</button>
                             <button onclick="setTeamFilter('A')" id="btn-A"
                                 class="flex-1 py-1 text-xs font-medium rounded transition-all">A조</button>
                             <button onclick="setTeamFilter('B')" id="btn-B"
@@ -503,31 +549,61 @@
         let currentYear = 2026;
         let currentMonth = 0;
         let viewMode = 'CALENDAR';
-        let currentTeam = 'A';
+        let currentTeam = 'ALL';
         const BASE_DATE = new Date(2026, 0, 1);
         const SHIFT_WORK_HOURS = 10.25;
         const DAY_WORK_HOURS = 8.0;
 
-        // Holidays
-        const HOLIDAYS = {
-            '2025-01-01': '신정', '2025-01-28': '설날', '2025-01-29': '설날', '2025-01-30': '설날', '2025-03-01': '삼일절', '2025-03-03': '대체공휴일',
-            '2025-05-05': '어린이날', '2025-05-06': '대체공휴일', '2025-06-06': '현충일', '2025-08-15': '광복절', '2025-10-03': '개천절',
-            '2025-10-05': '추석', '2025-10-06': '추석', '2025-10-07': '추석', '2025-10-08': '대체공휴일', '2025-10-09': '한글날', '2025-12-25': '성탄절',
-            '2026-01-01': '신정', '2026-02-16': '설날', '2026-02-17': '설날', '2026-02-18': '설날', '2026-03-01': '삼일절', '2026-03-02': '대체공휴일',
-            '2026-05-05': '어린이날', '2026-05-24': '부처님오신날', '2026-05-25': '대체공휴일', '2026-06-06': '현충일', '2026-08-15': '광복절', '2026-08-17': '대체공휴일',
-            '2026-09-24': '추석', '2026-09-25': '추석', '2026-09-26': '추석', '2026-10-03': '개천절', '2026-10-05': '대체공휴일', '2026-10-09': '한글날',
-            '2026-12-25': '성탄절',
-            '2027-01-01': '신정', '2027-02-06': '설날', '2027-02-07': '설날', '2027-02-08': '설날', '2027-02-09': '대체공휴일', '2027-03-01': '삼일절',
-            '2027-05-05': '어린이날', '2027-05-13': '부처님오신날', '2027-06-06': '현충일', '2027-08-15': '광복절', '2027-08-16': '대체공휴일',
-            '2027-09-14': '추석', '2027-09-15': '추석', '2027-09-16': '추석', '2027-10-03': '개천절', '2027-10-04': '대체공휴일', '2027-10-09': '한글날', '2027-10-11': '대체공휴일', '2027-12-25': '성탄절', '2027-12-27': '대체공휴일',
-            '2028-01-01': '신정', '2028-01-26': '설날', '2028-01-27': '설날', '2028-01-28': '설날', '2028-03-01': '삼일절', '2028-05-02': '부처님오신날', '2028-05-05': '어린이날',
-            '2028-06-06': '현충일', '2028-08-15': '광복절', '2028-10-02': '추석', '2028-10-03': '추석', '2028-10-04': '추석', '2028-10-05': '대체공휴일', '2028-10-09': '한글날', '2028-12-25': '성탄절',
-            '2029-01-01': '신정', '2029-02-12': '설날', '2029-02-13': '설날', '2029-02-14': '설날', '2029-03-01': '삼일절', '2029-05-05': '어린이날', '2029-05-07': '대체공휴일',
-            '2029-05-20': '부처님오신날', '2029-05-21': '대체공휴일', '2029-06-06': '현충일', '2029-08-15': '광복절', '2029-09-21': '추석', '2029-09-22': '추석', '2029-09-23': '추석', '2029-09-24': '대체공휴일',
-            '2029-10-03': '개천절', '2029-10-09': '한글날', '2029-12-25': '성탄절',
-            '2030-01-01': '신정', '2030-02-02': '설날', '2030-02-03': '설날', '2030-02-04': '설날', '2030-02-05': '대체공휴일', '2030-03-01': '삼일절', '2030-05-05': '어린이날', '2030-05-06': '대체공휴일',
-            '2030-05-09': '부처님오신날', '2030-06-06': '현충일', '2030-08-15': '광복절', '2030-09-11': '추석', '2030-09-12': '추석', '2030-09-13': '추석', '2030-10-03': '개천절', '2030-10-09': '한글날', '2030-12-25': '성탄절'
-        };
+        // ... (skipping unchanged lines)
+
+        function switchMainTab(mode) {
+            viewMode = mode;
+
+            ['CALENDAR', 'TEAM', 'DETAIL'].forEach(m => {
+                const tab = document.getElementById(`tab-${m}`);
+                if (m === mode) {
+                    tab.className = "main-tab active";
+                } else {
+                    tab.className = "main-tab inactive";
+                }
+            });
+
+            // "ALL" is not valid for TEAM input mode
+            if (mode === 'TEAM' && currentTeam === 'ALL') {
+                currentTeam = 'A';
+            }
+
+            const teamSelect = document.getElementById('teamSelectContainer');
+            const placeholder = document.getElementById('teamSelectPlaceholder');
+
+            if (mode === 'TEAM' || mode === 'CALENDAR') {
+                teamSelect.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+                updateTeamButtons();
+            } else {
+                teamSelect.classList.add('hidden');
+                placeholder.classList.remove('hidden');
+            }
+
+            renderCalendar();
+        }
+
+        function setTeamFilter(team) {
+            currentTeam = team;
+            updateTeamButtons();
+            renderCalendar();
+        }
+
+        function updateTeamButtons() {
+            ['ALL', 'A', 'B', 'C', 'DAY_ONLY'].forEach(t => {
+                const btn = document.getElementById(`btn-${t}`);
+                if (t === currentTeam) {
+                    btn.className = "flex-1 py-1 text-xs font-bold rounded-md transition-all bg-white text-indigo-600 shadow-sm border border-slate-200";
+                } else {
+                    btn.className = "flex-1 py-1 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700 hover:bg-white/50";
+                }
+            });
+        }
 
         const SHIFT_TYPES = {
             DAY: { label: '주간', color: 'bg-amber-50 text-amber-700', border: 'border-amber-200', badge: 'bg-amber-100 text-amber-800 ring-1 ring-amber-200' },
@@ -617,7 +693,7 @@
             const teamSelect = document.getElementById('teamSelectContainer');
             const placeholder = document.getElementById('teamSelectPlaceholder');
 
-            if (mode === 'TEAM') {
+            if (mode === 'TEAM' || mode === 'CALENDAR') {
                 teamSelect.classList.remove('hidden');
                 placeholder.classList.add('hidden');
                 updateTeamButtons();
@@ -1148,6 +1224,10 @@
             const items = [];
             for (const [team, type] of Object.entries(shifts)) {
                 if (team === 'DAY_ONLY') continue;
+
+                // [Filter Logic] If a specific team is selected (not ALL), only show that team
+                if (currentTeam !== 'ALL' && currentTeam !== team) continue;
+
                 items.push({ team, type });
             }
 
