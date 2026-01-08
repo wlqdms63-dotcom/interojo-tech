@@ -146,10 +146,9 @@
         let pendingChanges = {};
 
         window.saveToDb = (key, value) => {
-            const parts = key.split('_');
-            let dateStr = '';
-            if (parts[1] === 'ot' || parts[1] === 'type') dateStr = parts[3];
-            else dateStr = parts[2];
+            // 날짜 형식(YYYY-MM-DD)을 정규식으로 추출
+            const dateMatch = key.match(/\d{4}-\d{2}-\d{2}/);
+            const dateStr = dateMatch ? dateMatch[0] : '';
             const monthKey = dateStr.substring(0, 7);
 
             if (!window.rosterData[monthKey]) window.rosterData[monthKey] = {};
@@ -216,11 +215,10 @@
             if (user) initRealtimeListeners();
         };
 
-        window.getDbData = (key) => {
-            const parts = key.split('_');
-            let dateStr = '';
-            if (parts[1] === 'ot' || parts[1] === 'type') dateStr = parts[3];
-            else dateStr = parts[2];
+        function getDbValue(key) {
+            // 날짜 형식(YYYY-MM-DD)을 정규식으로 추출
+            const dateMatch = key.match(/\d{4}-\d{2}-\d{2}/);
+            const dateStr = dateMatch ? dateMatch[0] : '';
             const monthKey = dateStr.substring(0, 7);
             return window.rosterData[monthKey] && window.rosterData[monthKey][key]
                 ? window.rosterData[monthKey][key]
@@ -243,134 +241,168 @@
         }
     </script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700&display=swap');
+
         body {
-            background-color: #f1f5f9;
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f8fafc;
         }
 
+        /* Glassmorphism Utilities */
+        .glass {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        /* Calendar Grid */
         .calendar-grid {
             display: grid;
             grid-template-columns: repeat(7, 1fr);
             gap: 1px;
-            background-color: #e2e8f0;
-            border-radius: 0 0 0.75rem 0.75rem;
+            background-color: rgba(226, 232, 240, 0.6);
+            /* Reduced visibility of grid lines */
+            border-radius: 0 0 1.5rem 1.5rem;
             overflow: hidden;
         }
 
         .calendar-day {
-            min-height: 110px;
-            background-color: white;
-            transition: background-color 0.2s;
+            min-height: 120px;
+            background-color: rgba(255, 255, 255, 0.9);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
         }
 
         .calendar-day:hover {
-            background-color: #f8fafc;
+            background-color: #ffffff;
+            z-index: 10;
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
         }
 
-        .horizontal-scroll-container {
-            display: flex;
-            overflow-x: auto;
-            padding: 0.5rem;
-            gap: 0.25rem;
-            scroll-behavior: smooth;
-            align-items: stretch;
-        }
-
-        .horizontal-scroll-container::-webkit-scrollbar {
-            height: 8px;
-        }
-
-        .horizontal-scroll-container::-webkit-scrollbar-track {
-            background: #e2e8f0;
-            border-radius: 10px;
-        }
-
-        .horizontal-scroll-container::-webkit-scrollbar-thumb {
-            background: #94a3b8;
-            border-radius: 10px;
-        }
-
-        .horizontal-scroll-container::-webkit-scrollbar-thumb:hover {
-            background: #64748b;
-        }
-
+        /* Cards */
         .day-card {
-            flex: 0 0 160px;
+            flex: 0 0 180px;
             background-color: white;
-            border-radius: 0.5rem;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            border-radius: 1rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            border: 1px solid #e2e8f0;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            transition: all 0.3s ease;
+        }
+
+        .day-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.06);
+            border-color: #cbd5e1;
         }
 
         .detail-card {
-            flex: 0 0 160px;
+            flex: 0 0 180px;
             background-color: white;
-            border-radius: 0.5rem;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            border-radius: 1rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            border: 1px solid #e2e8f0;
-            border-top: 3px solid #6366f1;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            border-top: 4px solid #6366f1;
+            transition: all 0.3s ease;
+        }
+
+        .detail-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.06);
         }
 
         .summary-card {
-            flex: 0 0 140px;
+            flex: 0 0 160px;
             background-color: white;
-            border-radius: 0.5rem;
+            border-radius: 1rem;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-            border: 1px solid #e2e8f0;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+            border: 1px solid rgba(226, 232, 240, 0.8);
             overflow: hidden;
+            transition: all 0.3s ease;
         }
 
-        .date-box {
-            width: 100%;
-            height: 50px;
-            display: flex;
+        .summary-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
         }
 
+        /* Input Controls */
         input[type=number]::-webkit-inner-spin-button,
         input[type=number]::-webkit-outer-spin-button {
             -webkit-appearance: none;
             margin: 0;
         }
 
-        .tab-container {
-            background-color: #f1f5f9;
-            padding: 0.25rem;
-            border-radius: 0.75rem;
-            display: flex;
+        .number-input {
+            transition: all 0.2s;
+            border: 1px solid transparent;
         }
 
+        .number-input:focus {
+            background-color: #f8fafc;
+            border-color: #e2e8f0;
+        }
+
+        /* Tabs */
         .main-tab {
-            flex: 1;
-            padding: 0.5rem;
-            font-size: 0.85rem;
-            font-weight: 600;
-            text-align: center;
-            border-radius: 0.5rem;
+            padding: 0.6rem 1.5rem;
+            font-size: 0.9rem;
+            font-weight: 700;
+            border-radius: 0.8rem;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             color: #64748b;
+            position: relative;
+            overflow: hidden;
         }
 
         .main-tab.active {
             background-color: white;
             color: #4f46e5;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.15);
+            transform: scale(1.02);
         }
 
         .main-tab.inactive:hover {
             color: #334155;
-            background-color: rgba(255, 255, 255, 0.5);
+            background-color: rgba(255, 255, 255, 0.6);
         }
 
+        /* Team Filter Buttons */
+        .team-filter-btn {
+            padding: 0.5rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            border-radius: 0.75rem;
+            transition: all 0.2s ease;
+            color: #64748b;
+        }
+
+        .team-filter-btn.active {
+            background-color: white;
+            color: #4f46e5;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            font-weight: 700;
+        }
+
+        .team-filter-btn:not(.active):hover {
+            background-color: rgba(255, 255, 255, 0.5);
+            color: #334155;
+        }
+
+        /* Custom Scrollbar */
         .custom-scrollbar::-webkit-scrollbar {
-            width: 4px;
+            width: 5px;
+            height: 5px;
         }
 
         .custom-scrollbar::-webkit-scrollbar-track {
@@ -382,34 +414,92 @@
             border-radius: 20px;
         }
 
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background-color: #94a3b8;
+        }
+
+        .horizontal-scroll-container {
+            display: flex;
+            overflow-x: auto;
+            padding: 1rem;
+            gap: 0.75rem;
+            scroll-behavior: smooth;
+            align-items: stretch;
+        }
+
+        .horizontal-scroll-container::-webkit-scrollbar {
+            height: 6px;
+        }
+
+        .horizontal-scroll-container::-webkit-scrollbar-track {
+            background: rgba(226, 232, 240, 0.5);
+            border-radius: 10px;
+            margin: 0 10px;
+        }
+
+        .horizontal-scroll-container::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+
         .loading-overlay {
             position: absolute;
             inset: 0;
-            background: rgba(255, 255, 255, 0.8);
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(4px);
             display: flex;
             justify-content: center;
             align-items: center;
             z-index: 50;
-            backdrop-filter: blur(2px);
+        }
+
+        /* Animations */
+        @keyframes pulse-slow {
+
+            0%,
+            100% {
+                opacity: 0.4;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        .animate-pulse-slow {
+            animation: pulse-slow 8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
     </style>
 </head>
 
 <body class="text-slate-700 antialiased">
 
-    <div class="max-w-[1400px] mx-auto p-4 md:p-6 relative">
+    <div class="min-h-screen bg-[#f8fafc] pb-20 relative overflow-x-hidden">
+        <!-- Background Decoration -->
+        <div class="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+            <div
+                class="absolute -top-[20%] -left-[10%] w-[70%] h-[70%] rounded-full bg-indigo-200/20 blur-[100px] animate-pulse-slow">
+            </div>
+            <div
+                class="absolute top-[10%] -right-[10%] w-[60%] h-[60%] rounded-full bg-blue-200/20 blur-[100px] animate-pulse-slow delay-1000">
+            </div>
+        </div>
+
         <!-- Live Status Badges -->
-        <div class="fixed top-4 right-4 z-50 flex flex-col gap-2 items-end">
+        <div class="fixed top-6 right-6 z-[60] flex flex-col gap-3 items-end">
             <div id="liveBadge"
-                class="hidden flex items-center bg-white/90 backdrop-blur px-2.5 py-1 rounded-full shadow-md border border-emerald-100 text-[10px] font-bold text-emerald-600 transition-all">
-                <span class="relative flex h-2 w-2 mr-1.5"><span
-                        class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span
-                        class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span>LIVE
+                class="hidden flex items-center bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-full shadow-lg border border-emerald-100 text-[11px] font-bold text-emerald-600 transition-all hover:scale-105">
+                <span class="relative flex h-2.5 w-2.5 mr-2">
+                    <span
+                        class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+                LIVE
             </div>
             <div id="syncStatus"
-                class="flex items-center bg-indigo-600 px-2.5 py-1 rounded-full shadow-md text-[10px] font-medium text-white opacity-0 transition-opacity duration-300">
-                <svg class="animate-spin -ml-0.5 mr-1.5 h-2.5 w-2.5 text-white" xmlns="http://www.w3.org/2000/svg"
-                    fill="none" viewBox="0 0 24 24">
+                class="flex items-center bg-slate-900/90 backdrop-blur px-3 py-1.5 rounded-full shadow-lg text-[11px] font-medium text-white opacity-0 transition-opacity duration-300">
+                <svg class="animate-spin -ml-0.5 mr-2 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none"
+                    viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor"
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
@@ -418,536 +508,600 @@
             </div>
         </div>
 
-        <!-- Header -->
-        <header class="mb-6 flex flex-col items-center relative">
-            <h1
-                class="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-blue-500 tracking-tight">
-                원료생산팀 설비운영 근무계획표
-            </h1>
-        </header>
+        <div class="max-w-[1440px] mx-auto p-4 md:p-8 relative z-10">
+            <!-- Header -->
+            <header class="mb-10 flex flex-col items-center relative">
+                <div class="relative">
+                    <h1
+                        class="text-3xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-slate-800 via-indigo-800 to-slate-800 tracking-tight mb-2 text-center drop-shadow-sm">
+                        원료생산팀 설비운영<br class="md:hidden" /> 근무계획표
+                    </h1>
+                    <div
+                        class="h-1.5 w-24 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-full mx-auto mt-4 shadow-lg shadow-indigo-500/30">
+                    </div>
+                </div>
+                <p class="text-slate-500 text-sm md:text-base font-medium mt-4 tracking-wide">Intelligent Roster
+                    Management System</p>
+            </header>
 
-        <!-- Main Controls -->
-        <div class="bg-white rounded-xl shadow-soft p-1 mb-6 border border-slate-100">
-            <div class="tab-container mb-4 mx-4 mt-4 max-w-2xl lg:mx-6">
-                <button id="tab-CALENDAR" onclick="switchMainTab('CALENDAR')" class="main-tab active"><span
-                        class="mr-1">📅</span>월간 캘린더</button>
-                <button id="tab-TEAM" onclick="switchMainTab('TEAM')" class="main-tab inactive"><span
-                        class="mr-1">✍️</span>근무조별 입력</button>
-                <button id="tab-DETAIL" onclick="switchMainTab('DETAIL')" class="main-tab inactive"><span
-                        class="mr-1">🔍</span>전체 상세</button>
-            </div>
-            <div class="px-6 pb-4 pt-2">
-                <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+            <!-- Main Controls -->
+            <div
+                class="bg-white/70 backdrop-blur-xl rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/50 p-6 mb-8 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
+                <!-- Tabs -->
+                <div class="flex justify-center mb-8">
+                    <div class="bg-slate-100/80 p-1.5 rounded-2xl inline-flex shadow-inner">
+                        <button id="tab-CALENDAR" onclick="switchMainTab('CALENDAR')" class="main-tab group active">
+                            <span class="flex items-center justify-center gap-2">
+                                <i data-lucide="calendar"
+                                    class="w-4 h-4 transition-transform group-hover:scale-110"></i>
+                                <span>월간 캘린더</span>
+                            </span>
+                        </button>
+                        <button id="tab-TEAM" onclick="switchMainTab('TEAM')" class="main-tab group inactive">
+                            <span class="flex items-center justify-center gap-2">
+                                <i data-lucide="users" class="w-4 h-4 transition-transform group-hover:scale-110"></i>
+                                <span>근무조별 입력</span>
+                            </span>
+                        </button>
+                        <button id="tab-DETAIL" onclick="switchMainTab('DETAIL')" class="main-tab group inactive">
+                            <span class="flex items-center justify-center gap-2">
+                                <i data-lucide="search" class="w-4 h-4 transition-transform group-hover:scale-110"></i>
+                                <span>전체 상세</span>
+                            </span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 xl:grid-cols-12 gap-6 items-end">
                     <!-- Date -->
-                    <div class="md:col-span-2">
+                    <div class="xl:col-span-3">
                         <label
-                            class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Date</label>
-                        <div class="flex space-x-2">
-                            <select id="yearSelect"
-                                class="block w-full pl-2 pr-6 py-1.5 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-md focus:ring-1 focus:ring-indigo-500 cursor-pointer">
-                                <option value="2025">2025년</option>
-                                <option value="2026" selected>2026년</option>
-                                <option value="2027">2027년</option>
-                                <option value="2028">2028년</option>
-                                <option value="2029">2029년</option>
-                                <option value="2030">2030년</option>
-                            </select>
-                            <select id="monthSelect"
-                                class="block w-full pl-2 pr-6 py-1.5 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-md focus:ring-1 focus:ring-indigo-500 cursor-pointer"></select>
+                            class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2 pl-1">Period
+                            Selection</label>
+                        <div class="flex gap-2 group">
+                            <div class="relative flex-1">
+                                <select id="yearSelect"
+                                    class="appearance-none block w-full pl-4 pr-10 py-3 text-sm font-bold bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm group-hover:border-indigo-300">
+                                    <option value="2025">2025년</option>
+                                    <option value="2026" selected>2026년</option>
+                                    <option value="2027">2027년</option>
+                                    <option value="2028">2028년</option>
+                                    <option value="2029">2029년</option>
+                                    <option value="2030">2030년</option>
+                                </select>
+                                <div
+                                    class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
+                                    <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                                </div>
+                            </div>
+                            <div class="relative flex-1">
+                                <select id="monthSelect"
+                                    class="appearance-none block w-full pl-4 pr-10 py-3 text-sm font-bold bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm group-hover:border-indigo-300"></select>
+                                <div
+                                    class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
+                                    <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                                </div>
+                            </div>
                         </div>
                     </div>
+
                     <!-- Nav -->
-                    <div class="md:col-span-2 flex justify-start gap-1">
+                    <div class="xl:col-span-2 flex items-center gap-2">
                         <button onclick="changeMonth(-1)"
-                            class="p-1.5 bg-white border border-slate-200 hover:bg-slate-50 rounded text-slate-600 transition-colors shadow-sm"><i
-                                data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                            class="p-3 bg-white border border-slate-200 hover:bg-slate-50 hover:border-indigo-300 hover:text-indigo-600 rounded-xl text-slate-500 transition-all shadow-sm active:scale-95"><i
+                                data-lucide="chevron-left" class="w-5 h-5"></i></button>
                         <button onclick="changeMonth(1)"
-                            class="p-1.5 bg-indigo-600 hover:bg-indigo-700 rounded text-white shadow-md shadow-indigo-200 transition-colors"><i
-                                data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                            class="p-3 bg-indigo-600 hover:bg-indigo-700 hover:shadow-indigo-500/30 rounded-xl text-white shadow-lg transition-all active:scale-95"><i
+                                data-lucide="chevron-right" class="w-5 h-5"></i></button>
                     </div>
+
                     <!-- Pattern -->
-                    <div class="md:col-span-3">
+                    <div class="xl:col-span-3">
                         <label
-                            class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Pattern</label>
-                        <select id="cycleType" onchange="renderCalendar()"
-                            class="block w-full pl-2 pr-6 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md focus:ring-1 focus:ring-indigo-500 cursor-pointer">
-                            <option value="3" selected>4근무 2휴무 (주4-휴2-야4-휴2)</option>
-                            <option value="2">2근무 2휴무 (주주-야야-비비)</option>
-                            <option value="1">2근무 1휴무 (주-야-비)</option>
-                        </select>
-                    </div>
-                    <!-- Team -->
-                    <div id="teamSelectContainer" class="hidden md:col-span-5">
-                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Team
-                            Select</label>
-                        <div class="flex bg-slate-100 p-0.5 rounded-md">
-                            <button onclick="setTeamFilter('ALL')" id="btn-ALL"
-                                class="flex-1 py-1 text-xs font-medium rounded transition-all">전체</button>
-                            <button onclick="setTeamFilter('A')" id="btn-A"
-                                class="flex-1 py-1 text-xs font-medium rounded transition-all">A조</button>
-                            <button onclick="setTeamFilter('B')" id="btn-B"
-                                class="flex-1 py-1 text-xs font-medium rounded transition-all">B조</button>
-                            <button onclick="setTeamFilter('C')" id="btn-C"
-                                class="flex-1 py-1 text-xs font-medium rounded transition-all">C조</button>
-                            <button onclick="setTeamFilter('DAY_ONLY')" id="btn-DAY_ONLY"
-                                class="flex-1 py-1 text-xs font-medium rounded transition-all">주간</button>
+                            class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2 pl-1">Shift
+                            Pattern</label>
+                        <div class="relative">
+                            <select id="cycleType" onchange="renderCalendar()"
+                                class="appearance-none block w-full pl-4 pr-10 py-3 text-sm bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm cursor-pointer hover:border-indigo-300">
+                                <option value="3" selected>4근무 2휴무 (주4-휴2-야4-휴2)</option>
+                                <option value="2">2근무 2휴무 (주주-야야-비비)</option>
+                                <option value="1">2근무 1휴무 (주-야-비)</option>
+                            </select>
+                            <div
+                                class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
+                                <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                            </div>
                         </div>
                     </div>
-                    <div id="teamSelectPlaceholder" class="hidden md:block md:col-span-5"></div>
+
+                    <!-- Team -->
+                    <div id="teamSelectContainer" class="hidden xl:col-span-4">
+                        <label
+                            class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2 pl-1">Team
+                            Filter</label>
+                        <div class="flex bg-slate-100/80 p-1.5 rounded-2xl">
+                            <button onclick="setTeamFilter('ALL')" id="btn-ALL"
+                                class="team-filter-btn flex-1">전체</button>
+                            <button onclick="setTeamFilter('A')" id="btn-A" class="team-filter-btn flex-1">A조</button>
+                            <button onclick="setTeamFilter('B')" id="btn-B" class="team-filter-btn flex-1">B조</button>
+                            <button onclick="setTeamFilter('C')" id="btn-C" class="team-filter-btn flex-1">C조</button>
+                            <button onclick="setTeamFilter('DAY_ONLY')" id="btn-DAY_ONLY"
+                                class="team-filter-btn flex-1">3팀</button>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Legend -->
-        <div class="flex flex-wrap justify-center gap-4 mb-4">
-            <div class="flex items-center text-xs font-medium text-slate-600"><span
-                    class="w-2.5 h-2.5 rounded-full bg-amber-400 mr-1.5 shadow-sm"></span>주간</div>
-            <div class="flex items-center text-xs font-medium text-slate-600"><span
-                    class="w-2.5 h-2.5 rounded-full bg-indigo-500 mr-1.5 shadow-sm"></span>야간</div>
-            <div class="flex items-center text-xs font-medium text-slate-600"><span
-                    class="w-2.5 h-2.5 rounded-full bg-emerald-400 mr-1.5 shadow-sm"></span>주휴(초록)</div>
-            <div class="flex items-center text-xs font-medium text-slate-600"><span
-                    class="w-2.5 h-2.5 rounded-full bg-slate-400 mr-1.5 shadow-sm"></span>무휴(회색)</div>
-            <div class="flex items-center text-xs font-medium text-slate-600"><span
-                    class="w-2.5 h-2.5 rounded-full bg-red-400 mr-1.5 shadow-sm"></span>유휴(공휴)</div>
-        </div>
-
-        <!-- View Container -->
-        <div class="bg-white rounded-xl shadow-soft overflow-hidden border border-slate-200 relative min-h-[400px]">
-            <div id="loadingOverlay" class="loading-overlay hidden">
-                <div class="flex flex-col items-center">
-                    <svg class="animate-spin h-6 w-6 text-indigo-600 mb-2" xmlns="http://www.w3.org/2000/svg"
-                        fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
-                        </circle>
-                        <path class="opacity-75" fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                        </path>
-                    </svg>
-                    <span class="text-xs font-medium text-slate-500">로딩중...</span>
+            <!-- Legend -->
+            <div
+                class="flex flex-wrap justify-center gap-3 md:gap-6 mb-8 bg-white/50 backdrop-blur-sm py-4 px-6 rounded-2xl border border-white/50 inline-flex mx-auto w-full md:w-auto">
+                <div class="flex items-center text-xs font-semibold text-slate-600"><span
+                        class="w-3 h-3 rounded-full bg-amber-400 mr-2 shadow-[0_0_8px_rgba(251,191,36,0.5)]"></span>주간
+                </div>
+                <div class="flex items-center text-xs font-semibold text-slate-600"><span
+                        class="w-3 h-3 rounded-full bg-indigo-500 mr-2 shadow-[0_0_8px_rgba(99,102,241,0.5)]"></span>야간
+                </div>
+                <div class="flex items-center text-xs font-semibold text-slate-600"><span
+                        class="w-3 h-3 rounded-full bg-emerald-400 mr-2 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></span>주휴
+                </div>
+                <div class="flex items-center text-xs font-semibold text-slate-600"><span
+                        class="w-3 h-3 rounded-full bg-slate-400 mr-2 shadow-[0_0_8px_rgba(148,163,184,0.5)]"></span>무휴
+                </div>
+                <div class="flex items-center text-xs font-semibold text-slate-600"><span
+                        class="w-3 h-3 rounded-full bg-rose-400 mr-2 shadow-[0_0_8px_rgba(251,113,133,0.5)]"></span>유휴(공휴)
                 </div>
             </div>
-            <div id="gridHeader" class="grid grid-cols-7 bg-slate-50 border-b border-slate-200 hidden">
-                <div class="py-3 text-center text-red-500 font-bold text-xs">SUN</div>
-                <div class="py-3 text-center text-slate-600 font-bold text-xs">MON</div>
-                <div class="py-3 text-center text-slate-600 font-bold text-xs">TUE</div>
-                <div class="py-3 text-center text-slate-600 font-bold text-xs">WED</div>
-                <div class="py-3 text-center text-slate-600 font-bold text-xs">THU</div>
-                <div class="py-3 text-center text-slate-600 font-bold text-xs">FRI</div>
-                <div class="py-3 text-center text-blue-500 font-bold text-xs">SAT</div>
+
+            <!-- View Container -->
+            <div
+                class="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_20px_40px_-5px_rgb(0,0,0,0.05)] overflow-hidden border border-white/60 relative min-h-[500px]">
+                <div id="loadingOverlay" class="loading-overlay hidden">
+                    <div class="flex flex-col items-center bg-white/90 p-8 rounded-3xl shadow-xl backdrop-blur-sm">
+                        <div class="relative">
+                            <div
+                                class="w-12 h-12 rounded-full border-4 border-slate-100 border-t-indigo-600 animate-spin">
+                            </div>
+                            <div
+                                class="w-12 h-12 rounded-full border-4 border-transparent border-t-indigo-600/30 animate-spin absolute inset-0 rotate-180">
+                            </div>
+                        </div>
+                        <span class="text-xs font-bold text-slate-500 mt-4 tracking-wider">LOADING DATA</span>
+                    </div>
+                </div>
+                <div id="gridHeader"
+                    class="grid grid-cols-7 bg-slate-50/50 border-b border-slate-200/60 hidden backdrop-blur-sm sticky top-0 z-20">
+                    <div class="py-4 text-center text-rose-500 font-black text-xs tracking-widest">SUN</div>
+                    <div class="py-4 text-center text-slate-500 font-black text-xs tracking-widest">MON</div>
+                    <div class="py-4 text-center text-slate-500 font-black text-xs tracking-widest">TUE</div>
+                    <div class="py-4 text-center text-slate-500 font-black text-xs tracking-widest">WED</div>
+                    <div class="py-4 text-center text-slate-500 font-black text-xs tracking-widest">THU</div>
+                    <div class="py-4 text-center text-slate-500 font-black text-xs tracking-widest">FRI</div>
+                    <div class="py-4 text-center text-blue-500 font-black text-xs tracking-widest">SAT</div>
+                </div>
+                <div id="calendar" class="min-h-[500px]"></div>
             </div>
-            <div id="calendar" class="min-h-[400px]"></div>
+
+            <p id="scrollHint" class="text-center text-xs text-slate-400 mt-6 font-medium hidden">
+                <span
+                    class="inline-flex items-center gap-2 px-4 py-2 bg-white/50 rounded-full border border-slate-200 shadow-sm animate-pulse">
+                    <i data-lucide="arrow-left" class="w-3 h-3"></i>
+                    좌우로 스크롤하여 확인하세요
+                    <i data-lucide="arrow-right" class="w-3 h-3"></i>
+                </span>
+            </p>
+
+            <footer class="mt-12 text-center pb-8 opacity-60">
+                <p class="text-[10px] text-slate-400 font-medium">© 2026 INTEROJO INC. All Rights Reserved.</p>
+            </footer>
         </div>
 
-        <p id="scrollHint" class="text-center text-xs text-slate-400 mt-2 font-medium hidden">
-            <span class="inline-block animate-pulse">← 좌우 스크롤 →</span>
-        </p>
-    </div>
 
-    <script>
-        window.dbState = {};
-        let currentYear = 2026;
-        let currentMonth = 0;
-        let viewMode = 'CALENDAR';
-        let currentTeam = 'ALL';
-        const BASE_DATE = new Date(2026, 0, 1);
-        const SHIFT_WORK_HOURS = 10.25;
-        const DAY_WORK_HOURS = 8.0;
+        <script>
+            window.dbState = {};
+            let currentYear = 2026;
+            let currentMonth = 0;
+            let viewMode = 'CALENDAR';
+            let currentTeam = 'ALL';
+            const BASE_DATE = new Date(2026, 0, 1);
+            const SHIFT_WORK_HOURS = 10.25;
+            const DAY_WORK_HOURS = 8.0;
 
-        // ... (skipping unchanged lines)
+            // ... (skipping unchanged lines)
 
-        function switchMainTab(mode) {
-            viewMode = mode;
+            function switchMainTab(mode) {
+                viewMode = mode;
 
-            ['CALENDAR', 'TEAM', 'DETAIL'].forEach(m => {
-                const tab = document.getElementById(`tab-${m}`);
-                if (m === mode) {
-                    tab.className = "main-tab active";
-                } else {
-                    tab.className = "main-tab inactive";
-                }
-            });
-
-            // "ALL" is not valid for TEAM input mode
-            if (mode === 'TEAM' && currentTeam === 'ALL') {
-                currentTeam = 'A';
-            }
-
-            const teamSelect = document.getElementById('teamSelectContainer');
-            const placeholder = document.getElementById('teamSelectPlaceholder');
-
-            if (mode === 'TEAM' || mode === 'CALENDAR') {
-                teamSelect.classList.remove('hidden');
-                placeholder.classList.add('hidden');
-                updateTeamButtons();
-            } else {
-                teamSelect.classList.add('hidden');
-                placeholder.classList.remove('hidden');
-            }
-
-            renderCalendar();
-        }
-
-        function setTeamFilter(team) {
-            currentTeam = team;
-            updateTeamButtons();
-            renderCalendar();
-        }
-
-        function updateTeamButtons() {
-            ['ALL', 'A', 'B', 'C', 'DAY_ONLY'].forEach(t => {
-                const btn = document.getElementById(`btn-${t}`);
-                if (t === currentTeam) {
-                    btn.className = "flex-1 py-1 text-xs font-bold rounded-md transition-all bg-white text-indigo-600 shadow-sm border border-slate-200";
-                } else {
-                    btn.className = "flex-1 py-1 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700 hover:bg-white/50";
-                }
-            });
-        }
-
-        const SHIFT_TYPES = {
-            DAY: { label: '주간', color: 'bg-amber-50 text-amber-700', border: 'border-amber-200', badge: 'bg-amber-100 text-amber-800 ring-1 ring-amber-200' },
-            NIGHT: { label: '야간', color: 'bg-indigo-50 text-indigo-700', border: 'border-indigo-200', badge: 'bg-indigo-100 text-indigo-800 ring-1 ring-indigo-200' },
-            JU_HYU: { label: '무휴', color: 'bg-slate-50 text-slate-500', border: 'border-slate-200', badge: 'bg-slate-100 text-slate-600 ring-1 ring-slate-200' },
-            MU_HYU: { label: '주휴', color: 'bg-emerald-50 text-emerald-700', border: 'border-emerald-200', badge: 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200' },
-            YU_HYU: { label: '유휴', color: 'bg-red-50 text-red-700', border: 'border-red-200', badge: 'bg-red-100 text-red-800 ring-1 ring-red-200' }
-        };
-
-        const ATTENDANCE_OPTIONS = [
-            { value: '', label: '정상', color: 'text-slate-500' },
-            { value: '연차', label: '연차', color: 'text-red-500 font-bold' },
-            { value: '반차', label: '반차', color: 'text-blue-500 font-bold' },
-            { value: '조퇴', label: '조퇴', color: 'text-yellow-600 font-bold' },
-            { value: '지각', label: '지각', color: 'text-purple-500 font-bold' },
-            { value: '교육', label: '교육', color: 'text-green-600 font-bold' },
-            { value: '훈련', label: '훈련', color: 'text-indigo-600 font-bold' },
-            { value: '특근', label: '특근', color: 'text-pink-600 font-bold' },
-            { value: '기타', label: '기타', color: 'text-gray-600 font-bold' }
-        ];
-
-        window.TEAM_MEMBERS = {
-            'A': ['박영남', '홍성민', '김정국', '김도훈2', '이민정', '조명주', ''],
-            'B': ['오영석', '이동웅', '김윤수', '주정호', '박소희', '조미형', '송보란'],
-            'C': ['정인철', '김도영', '이은혁', '최용', '전수진', '김지혜2', ''],
-            'DAY_ONLY': ['신화동', '임현규', '김민솔', '']
-        };
-
-        const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
-
-        function getDbValue(key) {
-            const parts = key.split('_');
-            let dateStr = '';
-            if (parts[1] === 'ot' || parts[1] === 'type') dateStr = parts[3];
-            else dateStr = parts[2];
-            const monthKey = dateStr.substring(0, 7);
-
-            if (window.rosterData[monthKey] && window.rosterData[monthKey].hasOwnProperty(key)) {
-                return window.rosterData[monthKey][key];
-            }
-            return undefined;
-        }
-
-        function init() {
-            lucide.createIcons();
-            const monthSelect = document.getElementById('monthSelect');
-            for (let i = 0; i < 12; i++) {
-                const opt = document.createElement('option');
-                opt.value = i;
-                opt.text = `${i + 1}월`;
-                monthSelect.appendChild(opt);
-            }
-
-            document.getElementById('yearSelect').addEventListener('change', (e) => {
-                currentYear = parseInt(e.target.value);
-                window.currentYear = currentYear;
-                if (window.changeMonthListener) window.changeMonthListener();
-                renderCalendar();
-            });
-
-            monthSelect.addEventListener('change', (e) => {
-                currentMonth = parseInt(e.target.value);
-                window.currentMonth = currentMonth;
-                if (window.changeMonthListener) window.changeMonthListener();
-                renderCalendar();
-            });
-
-            window.currentYear = currentYear;
-            window.currentMonth = currentMonth;
-            window.renderCalendar = renderCalendar;
-
-            switchMainTab('CALENDAR');
-        }
-
-        function switchMainTab(mode) {
-            viewMode = mode;
-
-            ['CALENDAR', 'TEAM', 'DETAIL'].forEach(m => {
-                const tab = document.getElementById(`tab-${m}`);
-                if (m === mode) {
-                    tab.className = "main-tab active";
-                } else {
-                    tab.className = "main-tab inactive";
-                }
-            });
-
-            const teamSelect = document.getElementById('teamSelectContainer');
-            const placeholder = document.getElementById('teamSelectPlaceholder');
-
-            if (mode === 'TEAM' || mode === 'CALENDAR') {
-                teamSelect.classList.remove('hidden');
-                placeholder.classList.add('hidden');
-                updateTeamButtons();
-            } else {
-                teamSelect.classList.add('hidden');
-                placeholder.classList.remove('hidden');
-            }
-
-            renderCalendar();
-        }
-
-        function setTeamFilter(team) {
-            currentTeam = team;
-            updateTeamButtons();
-            renderCalendar();
-        }
-
-        function updateTeamButtons() {
-            ['A', 'B', 'C', 'DAY_ONLY'].forEach(t => {
-                const btn = document.getElementById(`btn-${t}`);
-                if (t === currentTeam) {
-                    btn.className = "flex-1 py-1 text-xs font-bold rounded-md transition-all bg-white text-indigo-600 shadow-sm border border-slate-200";
-                } else {
-                    btn.className = "flex-1 py-1 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700 hover:bg-white/50";
-                }
-            });
-        }
-
-        function changeMonth(delta) {
-            currentMonth += delta;
-            if (currentMonth > 11) {
-                currentMonth = 0;
-                currentYear++;
-                const yearSelect = document.getElementById('yearSelect');
-                if (yearSelect.querySelector(`option[value="${currentYear}"]`)) {
-                    yearSelect.value = currentYear;
-                }
-            } else if (currentMonth < 0) {
-                currentMonth = 11;
-                currentYear--;
-                const yearSelect = document.getElementById('yearSelect');
-                if (yearSelect.querySelector(`option[value="${currentYear}"]`)) {
-                    yearSelect.value = currentYear;
-                }
-            }
-            document.getElementById('monthSelect').value = currentMonth;
-
-            window.currentYear = currentYear;
-            window.currentMonth = currentMonth;
-
-            if (window.changeMonthListener) window.changeMonthListener();
-
-            renderCalendar();
-        }
-
-        function getHolidayName(dateStr) {
-            return HOLIDAYS[dateStr] || null;
-        }
-
-        function getShiftForDate(date) {
-            const cycleType = document.getElementById('cycleType').value;
-            const diffTime = date.getTime() - BASE_DATE.getTime();
-            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-            const dateStr = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
-            const isHoliday = !!HOLIDAYS[dateStr];
-
-            let shifts = { A: null, B: null, C: null, DAY_ONLY: null };
-
-            if (cycleType === '1') {
-                const cIndex = ((diffDays + 0) % 3 + 3) % 3;
-                const bIndex = ((diffDays + 1) % 3 + 3) % 3;
-                const aIndex = ((diffDays + 2) % 3 + 3) % 3;
-                const getShift = (idx) => {
-                    if (idx === 0) return SHIFT_TYPES.DAY;
-                    if (idx === 1) return SHIFT_TYPES.NIGHT;
-                    return SHIFT_TYPES.JU_HYU;
-                };
-                shifts.C = getShift(cIndex);
-                shifts.B = getShift(bIndex);
-                shifts.A = getShift(aIndex);
-            } else if (cycleType === '2') {
-                shifts.A = getShiftFrom6DayCycle(((diffDays + 5) % 6 + 6) % 6);
-                shifts.C = getShiftFrom6DayCycle(((diffDays + 1) % 6 + 6) % 6);
-                shifts.B = getShiftFrom6DayCycle(((diffDays + 3) % 6 + 6) % 6);
-            } else if (cycleType === '3') {
-                shifts.A = getShiftFrom12DayCycle(((diffDays + 11) % 12 + 12) % 12);
-                shifts.B = getShiftFrom12DayCycle(((diffDays + 7) % 12 + 12) % 12);
-                shifts.C = getShiftFrom12DayCycle(((diffDays + 3) % 12 + 12) % 12);
-            }
-
-            const dayOfWeek = date.getDay();
-
-            if (isHoliday) {
-                shifts.DAY_ONLY = SHIFT_TYPES.YU_HYU;
-            } else {
-                if (dayOfWeek === 0) shifts.DAY_ONLY = SHIFT_TYPES.MU_HYU;
-                else if (dayOfWeek === 6) shifts.DAY_ONLY = SHIFT_TYPES.JU_HYU;
-                else shifts.DAY_ONLY = SHIFT_TYPES.DAY;
-            }
-
-            return shifts;
-        }
-
-        function getShiftFrom6DayCycle(index) {
-            if (index === 0 || index === 1) return SHIFT_TYPES.DAY;
-            if (index === 2 || index === 3) return SHIFT_TYPES.NIGHT;
-            if (index === 4) return SHIFT_TYPES.JU_HYU;
-            return SHIFT_TYPES.MU_HYU;
-        }
-
-        function getShiftFrom12DayCycle(index) {
-            if (index >= 0 && index <= 3) return SHIFT_TYPES.DAY;
-            if (index >= 6 && index <= 9) return SHIFT_TYPES.NIGHT;
-            if (index === 4 || index === 10) return SHIFT_TYPES.JU_HYU;
-            if (index === 5 || index === 11) return SHIFT_TYPES.MU_HYU;
-            return SHIFT_TYPES.MU_HYU;
-        }
-
-        function calculateWeeklyWorkerStats(sundayDate, targetTeam) {
-            const memberCount = (targetTeam === 'DAY_ONLY') ? 4 : 7;
-            const slots = [];
-            for (let k = 0; k < memberCount; k++) slots.push({ name: '', hours: 0 });
-
-            for (let i = 6; i >= 0; i--) {
-                const d = new Date(sundayDate);
-                d.setDate(d.getDate() - i);
-                const dateStr = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
-
-                let dailyBaseHours = 0;
-
-                if (targetTeam === 'DAY_ONLY') {
-                    if (HOLIDAYS[dateStr]) {
-                        dailyBaseHours = 0;
+                ['CALENDAR', 'TEAM', 'DETAIL'].forEach(m => {
+                    const tab = document.getElementById(`tab-${m}`);
+                    if (m === mode) {
+                        tab.classList.remove('inactive');
+                        tab.classList.add('active');
                     } else {
-                        const dayOfWeek = d.getDay();
-                        if (dayOfWeek === 0 || dayOfWeek === 6) {
-                            dailyBaseHours = 7.5;
+                        tab.classList.remove('active');
+                        tab.classList.add('inactive');
+                    }
+                });
+
+                // "ALL" is not valid for TEAM input mode
+                if (mode === 'TEAM' && currentTeam === 'ALL') {
+                    currentTeam = 'A';
+                }
+
+                const teamSelect = document.getElementById('teamSelectContainer');
+                const placeholder = document.getElementById('teamSelectPlaceholder');
+
+                if (mode === 'TEAM' || mode === 'CALENDAR') {
+                    teamSelect.classList.remove('hidden');
+                    placeholder.classList.add('hidden');
+                    updateTeamButtons();
+                } else {
+                    teamSelect.classList.add('hidden');
+                    placeholder.classList.remove('hidden');
+                }
+
+                renderCalendar();
+            }
+
+            function setTeamFilter(team) {
+                currentTeam = team;
+                updateTeamButtons();
+                renderCalendar();
+            }
+
+            function updateTeamButtons() {
+                ['ALL', 'A', 'B', 'C', 'DAY_ONLY'].forEach(t => {
+                    const btn = document.getElementById(`btn-${t}`);
+                    if (t === currentTeam) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                });
+            }
+
+            const SHIFT_TYPES = {
+                DAY: { label: '주간', color: 'bg-amber-50 text-amber-700', border: 'border-amber-200', badge: 'bg-amber-100 text-amber-800 ring-1 ring-amber-200' },
+                NIGHT: { label: '야간', color: 'bg-indigo-50 text-indigo-700', border: 'border-indigo-200', badge: 'bg-indigo-100 text-indigo-800 ring-1 ring-indigo-200' },
+                JU_HYU: { label: '무휴', color: 'bg-slate-50 text-slate-500', border: 'border-slate-200', badge: 'bg-slate-100 text-slate-600 ring-1 ring-slate-200' },
+                MU_HYU: { label: '주휴', color: 'bg-emerald-50 text-emerald-700', border: 'border-emerald-200', badge: 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200' },
+                YU_HYU: { label: '유휴', color: 'bg-red-50 text-red-700', border: 'border-red-200', badge: 'bg-red-100 text-red-800 ring-1 ring-red-200' }
+            };
+
+            const ATTENDANCE_OPTIONS = [
+                { value: '', label: '정상', color: 'text-slate-500' },
+                { value: '연차', label: '연차', color: 'text-red-500 font-bold' },
+                { value: '반차', label: '반차', color: 'text-blue-500 font-bold' },
+                { value: '조퇴', label: '조퇴', color: 'text-yellow-600 font-bold' },
+                { value: '지각', label: '지각', color: 'text-purple-500 font-bold' },
+                { value: '교육', label: '교육', color: 'text-green-600 font-bold' },
+                { value: '훈련', label: '훈련', color: 'text-indigo-600 font-bold' },
+                { value: '특근', label: '특근', color: 'text-pink-600 font-bold' },
+                { value: '기타', label: '기타', color: 'text-gray-600 font-bold' }
+            ];
+
+            window.TEAM_MEMBERS = {
+                'A': ['박영남', '홍성민', '김정국', '김도훈2', '이민정', '조명주', ''],
+                'B': ['오영석', '이동웅', '김윤수', '주정호', '박소희', '조미형', '송보란'],
+                'C': ['정인철', '김도영', '이은혁', '최용', '전수진', '김지혜2', ''],
+                'DAY_ONLY': ['신화동', '임현규', '김민솔', '']
+            };
+
+            const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+
+            function getDbValue(key) {
+                const parts = key.split('_');
+                let dateStr = '';
+                if (parts[1] === 'ot' || parts[1] === 'type') dateStr = parts[3];
+                else dateStr = parts[2];
+                const monthKey = dateStr.substring(0, 7);
+
+                if (window.rosterData[monthKey] && window.rosterData[monthKey].hasOwnProperty(key)) {
+                    return window.rosterData[monthKey][key];
+                }
+                return undefined;
+            }
+
+            function init() {
+                lucide.createIcons();
+                const monthSelect = document.getElementById('monthSelect');
+                for (let i = 0; i < 12; i++) {
+                    const opt = document.createElement('option');
+                    opt.value = i;
+                    opt.text = `${i + 1}월`;
+                    monthSelect.appendChild(opt);
+                }
+
+                document.getElementById('yearSelect').addEventListener('change', (e) => {
+                    currentYear = parseInt(e.target.value);
+                    window.currentYear = currentYear;
+                    if (window.changeMonthListener) window.changeMonthListener();
+                    renderCalendar();
+                });
+
+                monthSelect.addEventListener('change', (e) => {
+                    currentMonth = parseInt(e.target.value);
+                    window.currentMonth = currentMonth;
+                    if (window.changeMonthListener) window.changeMonthListener();
+                    renderCalendar();
+                });
+
+                window.currentYear = currentYear;
+                window.currentMonth = currentMonth;
+                window.renderCalendar = renderCalendar;
+
+                switchMainTab('CALENDAR');
+            }
+
+            function switchMainTab(mode) {
+                viewMode = mode;
+
+                ['CALENDAR', 'TEAM', 'DETAIL'].forEach(m => {
+                    const tab = document.getElementById(`tab-${m}`);
+                    if (m === mode) {
+                        tab.className = "main-tab active";
+                    } else {
+                        tab.className = "main-tab inactive";
+                    }
+                });
+
+                const teamSelect = document.getElementById('teamSelectContainer');
+                const placeholder = document.getElementById('teamSelectPlaceholder');
+
+                if (mode === 'TEAM' || mode === 'CALENDAR') {
+                    teamSelect.classList.remove('hidden');
+                    placeholder.classList.add('hidden');
+                    updateTeamButtons();
+                } else {
+                    teamSelect.classList.add('hidden');
+                    placeholder.classList.remove('hidden');
+                }
+
+                renderCalendar();
+            }
+
+            function setTeamFilter(team) {
+                currentTeam = team;
+                updateTeamButtons();
+                renderCalendar();
+            }
+
+            function updateTeamButtons() {
+                ['A', 'B', 'C', 'DAY_ONLY'].forEach(t => {
+                    const btn = document.getElementById(`btn-${t}`);
+                    if (t === currentTeam) {
+                        btn.className = "flex-1 py-1 text-xs font-bold rounded-md transition-all bg-white text-indigo-600 shadow-sm border border-slate-200";
+                    } else {
+                        btn.className = "flex-1 py-1 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700 hover:bg-white/50";
+                    }
+                });
+            }
+
+            function changeMonth(delta) {
+                currentMonth += delta;
+                if (currentMonth > 11) {
+                    currentMonth = 0;
+                    currentYear++;
+                    const yearSelect = document.getElementById('yearSelect');
+                    if (yearSelect.querySelector(`option[value="${currentYear}"]`)) {
+                        yearSelect.value = currentYear;
+                    }
+                } else if (currentMonth < 0) {
+                    currentMonth = 11;
+                    currentYear--;
+                    const yearSelect = document.getElementById('yearSelect');
+                    if (yearSelect.querySelector(`option[value="${currentYear}"]`)) {
+                        yearSelect.value = currentYear;
+                    }
+                }
+                document.getElementById('monthSelect').value = currentMonth;
+
+                window.currentYear = currentYear;
+                window.currentMonth = currentMonth;
+
+                if (window.changeMonthListener) window.changeMonthListener();
+
+                renderCalendar();
+            }
+
+            function getHolidayName(dateStr) {
+                return HOLIDAYS[dateStr] || null;
+            }
+
+            function getShiftForDate(date) {
+                const cycleType = document.getElementById('cycleType').value;
+                const diffTime = date.getTime() - BASE_DATE.getTime();
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+                const dateStr = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+                const isHoliday = !!HOLIDAYS[dateStr];
+
+                let shifts = { A: null, B: null, C: null, DAY_ONLY: null };
+
+                if (cycleType === '1') {
+                    const cIndex = ((diffDays + 0) % 3 + 3) % 3;
+                    const bIndex = ((diffDays + 1) % 3 + 3) % 3;
+                    const aIndex = ((diffDays + 2) % 3 + 3) % 3;
+                    const getShift = (idx) => {
+                        if (idx === 0) return SHIFT_TYPES.DAY;
+                        if (idx === 1) return SHIFT_TYPES.NIGHT;
+                        return SHIFT_TYPES.JU_HYU;
+                    };
+                    shifts.C = getShift(cIndex);
+                    shifts.B = getShift(bIndex);
+                    shifts.A = getShift(aIndex);
+                } else if (cycleType === '2') {
+                    shifts.A = getShiftFrom6DayCycle(((diffDays + 5) % 6 + 6) % 6);
+                    shifts.C = getShiftFrom6DayCycle(((diffDays + 1) % 6 + 6) % 6);
+                    shifts.B = getShiftFrom6DayCycle(((diffDays + 3) % 6 + 6) % 6);
+                } else if (cycleType === '3') {
+                    shifts.A = getShiftFrom12DayCycle(((diffDays + 11) % 12 + 12) % 12);
+                    shifts.B = getShiftFrom12DayCycle(((diffDays + 7) % 12 + 12) % 12);
+                    shifts.C = getShiftFrom12DayCycle(((diffDays + 3) % 12 + 12) % 12);
+                }
+
+                const dayOfWeek = date.getDay();
+
+                if (isHoliday) {
+                    shifts.DAY_ONLY = SHIFT_TYPES.YU_HYU;
+                } else {
+                    if (dayOfWeek === 0) shifts.DAY_ONLY = SHIFT_TYPES.MU_HYU;
+                    else if (dayOfWeek === 6) shifts.DAY_ONLY = SHIFT_TYPES.JU_HYU;
+                    else shifts.DAY_ONLY = SHIFT_TYPES.DAY;
+                }
+
+                return shifts;
+            }
+
+            function getShiftFrom6DayCycle(index) {
+                if (index === 0 || index === 1) return SHIFT_TYPES.DAY;
+                if (index === 2 || index === 3) return SHIFT_TYPES.NIGHT;
+                if (index === 4) return SHIFT_TYPES.JU_HYU;
+                return SHIFT_TYPES.MU_HYU;
+            }
+
+            function getShiftFrom12DayCycle(index) {
+                if (index >= 0 && index <= 3) return SHIFT_TYPES.DAY;
+                if (index >= 6 && index <= 9) return SHIFT_TYPES.NIGHT;
+                if (index === 4 || index === 10) return SHIFT_TYPES.JU_HYU;
+                if (index === 5 || index === 11) return SHIFT_TYPES.MU_HYU;
+                return SHIFT_TYPES.MU_HYU;
+            }
+
+            function calculateWeeklyWorkerStats(sundayDate, targetTeam) {
+                const memberCount = (targetTeam === 'DAY_ONLY') ? 4 : 7;
+                const slots = [];
+                for (let k = 0; k < memberCount; k++) slots.push({ name: '', hours: 0 });
+
+                for (let i = 6; i >= 0; i--) {
+                    const d = new Date(sundayDate);
+                    d.setDate(d.getDate() - i);
+                    const dateStr = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
+
+                    let dailyBaseHours = 0;
+
+                    if (targetTeam === 'DAY_ONLY') {
+                        if (HOLIDAYS[dateStr]) {
+                            dailyBaseHours = 0;
                         } else {
-                            dailyBaseHours = DAY_WORK_HOURS;
+                            const dayOfWeek = d.getDay();
+                            if (dayOfWeek === 0 || dayOfWeek === 6) {
+                                dailyBaseHours = 7.5;
+                            } else {
+                                dailyBaseHours = DAY_WORK_HOURS;
+                            }
+                        }
+                    } else {
+                        dailyBaseHours = SHIFT_WORK_HOURS;
+                    }
+
+                    for (let slot = 0; slot < memberCount; slot++) {
+                        const nameVal = getMemo(dateStr, slot, targetTeam);
+                        const name = typeof nameVal === 'string' ? nameVal.trim() : '';
+                        const ot = parseFloat(getMemoOT(dateStr, slot, targetTeam)) || 0;
+
+                        if (name) {
+                            slots[slot].name = name;
+                            slots[slot].hours += dailyBaseHours + ot;
                         }
                     }
-                } else {
-                    dailyBaseHours = SHIFT_WORK_HOURS;
                 }
-
-                for (let slot = 0; slot < memberCount; slot++) {
-                    const nameVal = getMemo(dateStr, slot, targetTeam);
-                    const name = typeof nameVal === 'string' ? nameVal.trim() : '';
-                    const ot = parseFloat(getMemoOT(dateStr, slot, targetTeam)) || 0;
-
-                    if (name) {
-                        slots[slot].name = name;
-                        slots[slot].hours += dailyBaseHours + ot;
-                    }
-                }
+                return slots;
             }
-            return slots;
-        }
 
-        function saveMemo(dateStr, index, value, team) {
-            const targetTeam = team || currentTeam;
-            const key = `memo_${targetTeam}_${dateStr}_${index}`;
-            if (window.saveToDb) window.saveToDb(key, value);
-            else if (!window.dbState) { window.dbState = {}; window.dbState[key] = value; }
-            updateAllSummaries();
-        }
+            function saveMemo(dateStr, index, value, team) {
+                const targetTeam = team || currentTeam;
+                const key = `memo_${targetTeam}_${dateStr}_${index}`;
+                if (window.saveToDb) window.saveToDb(key, value);
+                else if (!window.dbState) { window.dbState = {}; window.dbState[key] = value; }
+                updateAllSummaries();
+            }
 
-        function getMemo(dateStr, index, team) {
-            const targetTeam = team || currentTeam;
-            const key = `memo_${targetTeam}_${dateStr}_${index}`;
+            function getMemo(dateStr, index, team) {
+                const targetTeam = team || currentTeam;
+                const key = `memo_${targetTeam}_${dateStr}_${index}`;
 
-            const dbVal = getDbValue(key);
-            if (dbVal !== undefined) return dbVal;
+                const dbVal = getDbValue(key);
+                if (dbVal !== undefined) return dbVal;
 
-            if (window.TEAM_MEMBERS[targetTeam] && window.TEAM_MEMBERS[targetTeam][index]) {
+                if (window.TEAM_MEMBERS[targetTeam] && window.TEAM_MEMBERS[targetTeam][index]) {
+                    const [y, m, d] = dateStr.split('-').map(Number);
+                    const date = new Date(y, m - 1, d);
+                    const shifts = getShiftForDate(date);
+                    const myShift = shifts[targetTeam];
+
+                    if (myShift === SHIFT_TYPES.JU_HYU || myShift === SHIFT_TYPES.MU_HYU || myShift === SHIFT_TYPES.YU_HYU) {
+                        return '';
+                    }
+                    return window.TEAM_MEMBERS[targetTeam][index];
+                }
+                return '';
+            }
+
+            function saveMemoType(dateStr, index, value, team) {
+                const targetTeam = team || currentTeam;
+                const typeKey = `memo_type_${targetTeam}_${dateStr}_${index}`;
+                const nameKey = `memo_${targetTeam}_${dateStr}_${index}`;
+
+                if (window.saveToDb) window.saveToDb(typeKey, value);
+
                 const [y, m, d] = dateStr.split('-').map(Number);
                 const date = new Date(y, m - 1, d);
                 const shifts = getShiftForDate(date);
                 const myShift = shifts[targetTeam];
+                const isOffDay = (myShift === SHIFT_TYPES.JU_HYU || myShift === SHIFT_TYPES.MU_HYU || myShift === SHIFT_TYPES.YU_HYU);
 
-                if (myShift === SHIFT_TYPES.JU_HYU || myShift === SHIFT_TYPES.MU_HYU || myShift === SHIFT_TYPES.YU_HYU) {
-                    return '';
-                }
-                return window.TEAM_MEMBERS[targetTeam][index];
-            }
-            return '';
-        }
+                const defaultName = window.TEAM_MEMBERS[targetTeam] && window.TEAM_MEMBERS[targetTeam][index] ? window.TEAM_MEMBERS[targetTeam][index] : '';
 
-        function saveMemoType(dateStr, index, value, team) {
-            const targetTeam = team || currentTeam;
-            const typeKey = `memo_type_${targetTeam}_${dateStr}_${index}`;
-            const nameKey = `memo_${targetTeam}_${dateStr}_${index}`;
-
-            if (window.saveToDb) window.saveToDb(typeKey, value);
-
-            const [y, m, d] = dateStr.split('-').map(Number);
-            const date = new Date(y, m - 1, d);
-            const shifts = getShiftForDate(date);
-            const myShift = shifts[targetTeam];
-            const isOffDay = (myShift === SHIFT_TYPES.JU_HYU || myShift === SHIFT_TYPES.MU_HYU || myShift === SHIFT_TYPES.YU_HYU);
-
-            const defaultName = window.TEAM_MEMBERS[targetTeam] && window.TEAM_MEMBERS[targetTeam][index] ? window.TEAM_MEMBERS[targetTeam][index] : '';
-
-            if (value === '연차') {
-                if (window.saveToDb) window.saveToDb(nameKey, '');
-            } else if (value === '특근') {
-                if (window.saveToDb) window.saveToDb(nameKey, defaultName);
-            } else if (value === '') {
-                if (isOffDay) {
+                if (value === '연차') {
                     if (window.saveToDb) window.saveToDb(nameKey, '');
+                } else if (value === '특근') {
+                    if (window.saveToDb) window.saveToDb(nameKey, defaultName);
+                } else if (value === '') {
+                    if (isOffDay) {
+                        if (window.saveToDb) window.saveToDb(nameKey, '');
+                    } else {
+                        if (window.saveToDb) window.saveToDb(nameKey, defaultName);
+                    }
                 } else {
                     if (window.saveToDb) window.saveToDb(nameKey, defaultName);
                 }
-            } else {
-                if (window.saveToDb) window.saveToDb(nameKey, defaultName);
+
+                renderCalendar();
             }
 
-            renderCalendar();
-        }
+            function getMemoType(dateStr, index, team) {
+                const targetTeam = team || currentTeam;
+                const key = `memo_type_${targetTeam}_${dateStr}_${index}`;
+                const val = getDbValue(key);
+                return val === undefined ? '' : val;
+            }
 
-        function getMemoType(dateStr, index, team) {
-            const targetTeam = team || currentTeam;
-            const key = `memo_type_${targetTeam}_${dateStr}_${index}`;
-            const val = getDbValue(key);
-            return val === undefined ? '' : val;
-        }
+            function saveMemoOT(dateStr, index, value, team) {
+                const targetTeam = team || currentTeam;
+                const key = `memo_ot_${targetTeam}_${dateStr}_${index}`;
+                if (window.saveToDb) window.saveToDb(key, value);
+                updateAllSummaries();
+            }
 
-        function saveMemoOT(dateStr, index, value, team) {
-            const targetTeam = team || currentTeam;
-            const key = `memo_ot_${targetTeam}_${dateStr}_${index}`;
-            if (window.saveToDb) window.saveToDb(key, value);
-            updateAllSummaries();
-        }
+            function getMemoOT(dateStr, index, team) {
+                const targetTeam = team || currentTeam;
+                const key = `memo_ot_${targetTeam}_${dateStr}_${index}`;
+                return getDbValue(key);
+            }
 
-        function getMemoOT(dateStr, index, team) {
-            const targetTeam = team || currentTeam;
-            const key = `memo_ot_${targetTeam}_${dateStr}_${index}`;
-            return getDbValue(key);
-        }
+            function updateAllSummaries() {
+                const summaryCards = document.querySelectorAll('.summary-container');
+                summaryCards.forEach(card => {
+                    const sundayDateStr = card.dataset.sunday;
+                    const sundayDate = new Date(sundayDateStr);
+                    const contentDiv = card.querySelector('.summary-content');
 
-        function updateAllSummaries() {
-            const summaryCards = document.querySelectorAll('.summary-container');
-            summaryCards.forEach(card => {
-                const sundayDateStr = card.dataset.sunday;
-                const sundayDate = new Date(sundayDateStr);
-                const contentDiv = card.querySelector('.summary-content');
-
-                if (viewMode === 'DETAIL') {
-                    let combinedHtml = '';
-                    ['A', 'B', 'C', 'DAY_ONLY'].forEach(team => {
-                        const slots = calculateWeeklyWorkerStats(sundayDate, team);
-                        const teamName = team === 'DAY_ONLY' ? '주간' : team + '조';
-                        combinedHtml += `
+                    if (viewMode === 'DETAIL') {
+                        let combinedHtml = '';
+                        ['A', 'B', 'C', 'DAY_ONLY'].forEach(team => {
+                            const slots = calculateWeeklyWorkerStats(sundayDate, team);
+                            const teamName = team === 'DAY_ONLY' ? '주간' : team + '조';
+                            combinedHtml += `
                             <div class="mb-1">
                                 <div class="font-bold text-[10px] text-slate-500 uppercase tracking-wider mb-0.5 flex items-center">
                                     <span class="w-1 h-1 rounded-full bg-slate-400 mr-1"></span>
@@ -955,92 +1109,92 @@
                                 </div>
                                 ${generateSummaryHTML(slots)}
                             </div>`;
-                    });
-                    contentDiv.innerHTML = combinedHtml;
-                } else if (viewMode === 'TEAM') {
-                    const slots = calculateWeeklyWorkerStats(sundayDate, currentTeam);
-                    contentDiv.innerHTML = generateSummaryHTML(slots);
-                }
-            });
-        }
+                        });
+                        contentDiv.innerHTML = combinedHtml;
+                    } else if (viewMode === 'TEAM') {
+                        const slots = calculateWeeklyWorkerStats(sundayDate, currentTeam);
+                        contentDiv.innerHTML = generateSummaryHTML(slots);
+                    }
+                });
+            }
 
-        function generateSummaryHTML(workerList) {
-            let html = `<div class="grid grid-cols-1 gap-1">`;
-            workerList.forEach(worker => {
-                const name = worker.name || '';
-                if (!name) {
-                    html += `
+            function generateSummaryHTML(workerList) {
+                let html = `<div class="grid grid-cols-1 gap-1">`;
+                workerList.forEach(worker => {
+                    const name = worker.name || '';
+                    if (!name) {
+                        html += `
                         <div class="flex justify-between items-center px-2 h-6 rounded border border-dashed border-slate-200 bg-slate-50/50">
                             <span class="text-xs text-slate-300">-</span>
                         </div>
                     `;
-                } else {
-                    const hours = worker.hours;
-                    const isOvertime = hours > 52;
-                    const hoursClass = isOvertime ? "text-rose-600 font-bold" : "text-slate-700 font-semibold";
-                    const bgClass = isOvertime ? "bg-rose-50 border-rose-100" : "bg-white border-slate-100 hover:bg-slate-50";
+                    } else {
+                        const hours = worker.hours;
+                        const isOvertime = hours > 52;
+                        const hoursClass = isOvertime ? "text-rose-600 font-bold" : "text-slate-700 font-semibold";
+                        const bgClass = isOvertime ? "bg-rose-50 border-rose-100" : "bg-white border-slate-100 hover:bg-slate-50";
 
-                    html += `
+                        html += `
                         <div class="flex justify-between items-center px-2 h-6 rounded border ${bgClass} text-xs transition-colors shadow-sm">
                             <span class="text-slate-600 truncate max-w-[80px]">${name}</span>
                             <span class="${hoursClass}">${hours}h</span>
                         </div>
                     `;
-                }
-            });
-            html += `</div>`;
-            return html;
-        }
-
-        function renderCalendar() {
-            const loadingOverlay = document.getElementById('loadingOverlay');
-            if (window.isFirebaseLoaded === false && window.hasFirebaseConfig) {
-                if (loadingOverlay) loadingOverlay.classList.remove('hidden');
-            } else {
-                if (loadingOverlay) loadingOverlay.classList.add('hidden');
+                    }
+                });
+                html += `</div>`;
+                return html;
             }
 
-            const container = document.getElementById('calendar');
-            const gridHeader = document.getElementById('gridHeader');
-            const scrollHint = document.getElementById('scrollHint');
-            container.innerHTML = '';
-
-            const firstDay = new Date(currentYear, currentMonth, 1);
-            const lastDay = new Date(currentYear, currentMonth + 1, 0);
-
-            if (viewMode === 'CALENDAR') {
-                container.className = 'calendar-grid';
-                gridHeader.classList.remove('hidden');
-                scrollHint.classList.add('hidden');
-
-                for (let i = 0; i < firstDay.getDay(); i++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'calendar-day bg-slate-100/50';
-                    container.appendChild(cell);
+            function renderCalendar() {
+                const loadingOverlay = document.getElementById('loadingOverlay');
+                if (window.isFirebaseLoaded === false && window.hasFirebaseConfig) {
+                    if (loadingOverlay) loadingOverlay.classList.remove('hidden');
+                } else {
+                    if (loadingOverlay) loadingOverlay.classList.add('hidden');
                 }
 
-                for (let d = 1; d <= lastDay.getDate(); d++) {
-                    const date = new Date(currentYear, currentMonth, d);
-                    const dayOfWeek = date.getDay();
-                    const dateStr = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`;
-                    const shifts = getShiftForDate(date);
-                    const holidayName = getHolidayName(dateStr);
+                const container = document.getElementById('calendar');
+                const gridHeader = document.getElementById('gridHeader');
+                const scrollHint = document.getElementById('scrollHint');
+                container.innerHTML = '';
 
-                    const cell = document.createElement('div');
-                    cell.className = 'calendar-day p-1.5 flex flex-col relative border-t border-r border-slate-100';
+                const firstDay = new Date(currentYear, currentMonth, 1);
+                const lastDay = new Date(currentYear, currentMonth + 1, 0);
 
-                    let numClass = "text-xs font-bold mb-0.5 ";
-                    let isRedDay = dayOfWeek === 0 || holidayName;
+                if (viewMode === 'CALENDAR') {
+                    container.className = 'calendar-grid';
+                    gridHeader.classList.remove('hidden');
+                    scrollHint.classList.add('hidden');
 
-                    if (isRedDay) numClass += "text-rose-500";
-                    else if (dayOfWeek === 6) numClass += "text-blue-500";
-                    else numClass += "text-slate-700";
+                    for (let i = 0; i < firstDay.getDay(); i++) {
+                        const cell = document.createElement('div');
+                        cell.className = 'calendar-day bg-slate-100/50';
+                        container.appendChild(cell);
+                    }
 
-                    let holidayBadge = holidayName
-                        ? `<div class="text-[9px] text-rose-500 font-medium truncate mb-0.5">${holidayName}</div>`
-                        : `<div class="h-3 mb-0.5"></div>`;
+                    for (let d = 1; d <= lastDay.getDate(); d++) {
+                        const date = new Date(currentYear, currentMonth, d);
+                        const dayOfWeek = date.getDay();
+                        const dateStr = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`;
+                        const shifts = getShiftForDate(date);
+                        const holidayName = getHolidayName(dateStr);
 
-                    cell.innerHTML = `
+                        const cell = document.createElement('div');
+                        cell.className = 'calendar-day p-1.5 flex flex-col relative border-t border-r border-slate-100';
+
+                        let numClass = "text-xs font-bold mb-0.5 ";
+                        let isRedDay = dayOfWeek === 0 || holidayName;
+
+                        if (isRedDay) numClass += "text-rose-500";
+                        else if (dayOfWeek === 6) numClass += "text-blue-500";
+                        else numClass += "text-slate-700";
+
+                        let holidayBadge = holidayName
+                            ? `<div class="text-[9px] text-rose-500 font-medium truncate mb-0.5">${holidayName}</div>`
+                            : `<div class="h-3 mb-0.5"></div>`;
+
+                        cell.innerHTML = `
                         <div class="flex justify-between items-start">
                             <span class="${numClass}">${d}</span>
                         </div>
@@ -1049,107 +1203,107 @@
                             ${generateCompactShiftHtml(shifts)}
                         </div>
                     `;
-                    container.appendChild(cell);
-                }
+                        container.appendChild(cell);
+                    }
 
-            } else {
-                container.className = 'horizontal-scroll-container bg-slate-100/50';
-                gridHeader.classList.add('hidden');
-                scrollHint.classList.remove('hidden');
+                } else {
+                    container.className = 'horizontal-scroll-container bg-slate-100/50';
+                    gridHeader.classList.add('hidden');
+                    scrollHint.classList.remove('hidden');
 
-                for (let d = 1; d <= lastDay.getDate(); d++) {
-                    const date = new Date(currentYear, currentMonth, d);
-                    const dayOfWeek = date.getDay();
-                    const dateStr = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`;
-                    const shifts = getShiftForDate(date);
-                    const holidayName = getHolidayName(dateStr);
+                    for (let d = 1; d <= lastDay.getDate(); d++) {
+                        const date = new Date(currentYear, currentMonth, d);
+                        const dayOfWeek = date.getDay();
+                        const dateStr = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`;
+                        const shifts = getShiftForDate(date);
+                        const holidayName = getHolidayName(dateStr);
 
-                    const card = document.createElement('div');
+                        const card = document.createElement('div');
 
-                    let dateColor = "text-slate-700";
-                    let bgColor = "bg-white";
+                        let dateColor = "text-slate-700";
+                        let bgColor = "bg-white";
 
-                    let isRedDay = dayOfWeek === 0 || holidayName;
+                        let isRedDay = dayOfWeek === 0 || holidayName;
 
-                    if (isRedDay) { dateColor = "text-rose-600"; bgColor = "bg-rose-50/30"; }
-                    else if (dayOfWeek === 6) { dateColor = "text-blue-600"; bgColor = "bg-blue-50/30"; }
+                        if (isRedDay) { dateColor = "text-rose-600"; bgColor = "bg-rose-50/30"; }
+                        else if (dayOfWeek === 6) { dateColor = "text-blue-600"; bgColor = "bg-blue-50/30"; }
 
-                    const header = document.createElement('div');
-                    header.className = `p-2 border-b border-slate-100 flex justify-between items-center ${bgColor} date-box`;
+                        const header = document.createElement('div');
+                        header.className = `p-2 border-b border-slate-100 flex justify-between items-center ${bgColor} date-box`;
 
-                    let dateDisplay = `<div class="flex flex-col"><div class="font-bold ${dateColor} text-sm">${(currentMonth + 1)}.${d} <span class="text-[10px] font-normal text-slate-400 ml-0.5">(${DAY_NAMES[dayOfWeek]})</span></div>`;
-                    if (holidayName) dateDisplay += `<div class="text-[9px] text-rose-500 font-bold mt-0.5">${holidayName}</div>`;
-                    dateDisplay += `</div>`;
+                        let dateDisplay = `<div class="flex flex-col"><div class="font-bold ${dateColor} text-sm">${(currentMonth + 1)}.${d} <span class="text-[10px] font-normal text-slate-400 ml-0.5">(${DAY_NAMES[dayOfWeek]})</span></div>`;
+                        if (holidayName) dateDisplay += `<div class="text-[9px] text-rose-500 font-bold mt-0.5">${holidayName}</div>`;
+                        dateDisplay += `</div>`;
 
-                    if (viewMode === 'DETAIL') {
-                        card.className = `detail-card`;
-                        header.innerHTML = dateDisplay;
-                    } else {
-                        const myShift = shifts[currentTeam];
-                        card.className = `day-card`;
-                        header.innerHTML = `
+                        if (viewMode === 'DETAIL') {
+                            card.className = `detail-card`;
+                            header.innerHTML = dateDisplay;
+                        } else {
+                            const myShift = shifts[currentTeam];
+                            card.className = `day-card`;
+                            header.innerHTML = `
                             ${dateDisplay}
                             <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${myShift.badge} shadow-sm self-start mt-0.5">${myShift.label}</span>
                         `;
-                    }
-                    card.appendChild(header);
+                        }
+                        card.appendChild(header);
 
-                    const body = document.createElement('div');
-                    body.className = "p-2 flex-1 flex flex-col space-y-2 bg-white";
+                        const body = document.createElement('div');
+                        body.className = "p-2 flex-1 flex flex-col space-y-2 bg-white";
 
-                    const teamsToRender = viewMode === 'DETAIL' ? ['A', 'B', 'C', 'DAY_ONLY'] : [currentTeam];
+                        const teamsToRender = viewMode === 'DETAIL' ? ['A', 'B', 'C', 'DAY_ONLY'] : [currentTeam];
 
-                    teamsToRender.forEach(targetTeam => {
-                        const targetShift = shifts[targetTeam];
-                        const teamLabel = targetTeam === 'DAY_ONLY' ? '주간' : targetTeam + '조';
+                        teamsToRender.forEach(targetTeam => {
+                            const targetShift = shifts[targetTeam];
+                            const teamLabel = targetTeam === 'DAY_ONLY' ? '주간' : targetTeam + '조';
 
-                        const memberCount = window.TEAM_MEMBERS[targetTeam] ? window.TEAM_MEMBERS[targetTeam].length : 7;
+                            const memberCount = window.TEAM_MEMBERS[targetTeam] ? window.TEAM_MEMBERS[targetTeam].length : 7;
 
-                        if (viewMode === 'DETAIL') {
-                            const sectionContainer = document.createElement('div');
-                            const sectionHeader = `
+                            if (viewMode === 'DETAIL') {
+                                const sectionContainer = document.createElement('div');
+                                const sectionHeader = `
                                 <div class="flex items-center justify-between mb-1">
                                     <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">${teamLabel}</span>
                                     <span class="px-1 py-0.5 rounded text-[9px] font-bold ${targetShift.badge}">${targetShift.label}</span>
                                 </div>
                             `;
-                            sectionContainer.innerHTML = sectionHeader;
+                                sectionContainer.innerHTML = sectionHeader;
 
-                            const groupContainer = document.createElement('div');
-                            groupContainer.className = "space-y-1 pl-1 border-l-2 border-slate-100";
+                                const groupContainer = document.createElement('div');
+                                groupContainer.className = "space-y-1 pl-1 border-l-2 border-slate-100";
 
-                            for (let i = 0; i < memberCount; i++) {
-                                const inputVal = getMemo(dateStr, i, targetTeam);
-                                const otVal = getMemoOT(dateStr, i, targetTeam);
-                                const typeVal = getMemoType(dateStr, i, targetTeam);
-                                const wrapper = createInputWrapper(dateStr, i, targetTeam, inputVal, otVal, typeVal, teamLabel);
-                                groupContainer.appendChild(wrapper);
+                                for (let i = 0; i < memberCount; i++) {
+                                    const inputVal = getMemo(dateStr, i, targetTeam);
+                                    const otVal = getMemoOT(dateStr, i, targetTeam);
+                                    const typeVal = getMemoType(dateStr, i, targetTeam);
+                                    const wrapper = createInputWrapper(dateStr, i, targetTeam, inputVal, otVal, typeVal, teamLabel);
+                                    groupContainer.appendChild(wrapper);
+                                }
+                                sectionContainer.appendChild(groupContainer);
+                                body.appendChild(sectionContainer);
+                            } else {
+                                const groupContainer = document.createElement('div');
+                                groupContainer.className = "space-y-1";
+                                for (let i = 0; i < memberCount; i++) {
+                                    const inputVal = getMemo(dateStr, i, targetTeam);
+                                    const otVal = getMemoOT(dateStr, i, targetTeam);
+                                    const typeVal = getMemoType(dateStr, i, targetTeam);
+                                    const wrapper = createInputWrapper(dateStr, i, targetTeam, inputVal, otVal, typeVal, teamLabel);
+                                    groupContainer.appendChild(wrapper);
+                                }
+                                body.appendChild(groupContainer);
                             }
-                            sectionContainer.appendChild(groupContainer);
-                            body.appendChild(sectionContainer);
-                        } else {
-                            const groupContainer = document.createElement('div');
-                            groupContainer.className = "space-y-1";
-                            for (let i = 0; i < memberCount; i++) {
-                                const inputVal = getMemo(dateStr, i, targetTeam);
-                                const otVal = getMemoOT(dateStr, i, targetTeam);
-                                const typeVal = getMemoType(dateStr, i, targetTeam);
-                                const wrapper = createInputWrapper(dateStr, i, targetTeam, inputVal, otVal, typeVal, teamLabel);
-                                groupContainer.appendChild(wrapper);
-                            }
-                            body.appendChild(groupContainer);
-                        }
-                    });
+                        });
 
-                    card.appendChild(body);
-                    container.appendChild(card);
+                        card.appendChild(body);
+                        container.appendChild(card);
 
-                    if (dayOfWeek === 0) {
-                        const summary = document.createElement('div');
-                        summary.className = "summary-card summary-container";
-                        summary.dataset.sunday = dateStr;
+                        if (dayOfWeek === 0) {
+                            const summary = document.createElement('div');
+                            summary.className = "summary-card summary-container";
+                            summary.dataset.sunday = dateStr;
 
-                        summary.innerHTML = `
+                            summary.innerHTML = `
                             <div class="bg-slate-800 text-white p-2 text-center date-box flex flex-col justify-center">
                                 <div class="text-[10px] font-medium text-slate-400 uppercase tracking-widest mb-0.5">Weekly Report</div>
                                 <div class="text-sm font-bold">${date.getMonth() + 1}월 ${Math.ceil(date.getDate() / 7)}주차</div>
@@ -1158,111 +1312,111 @@
                                 <!-- Filled by updateAllSummaries -->
                             </div>
                         `;
-                        container.appendChild(summary);
+                            container.appendChild(summary);
+                        }
                     }
+
+                    updateAllSummaries();
+                }
+            }
+
+            function createInputWrapper(dateStr, i, targetTeam, inputVal, otVal, typeVal, teamLabel) {
+                const wrapper = document.createElement('div');
+                wrapper.className = "flex gap-1 group items-center";
+
+                // Name Input
+                const input = document.createElement('input');
+                input.type = "text";
+                input.className = "flex-1 min-w-0 text-xs h-6 bg-slate-50 border-0 rounded px-2 text-slate-700 placeholder-slate-400 focus:bg-white focus:ring-1 focus:ring-indigo-500/20 transition-all shadow-sm group-hover:bg-white";
+                input.placeholder = `${teamLabel} ${i + 1}`;
+                input.value = inputVal;
+                input.addEventListener('input', (e) => saveMemo(dateStr, i, e.target.value, targetTeam));
+
+                // Attendance Type Select
+                const typeSelect = document.createElement('select');
+                let selectClass = "w-10 text-[9px] h-6 bg-slate-50 border-0 rounded px-0 text-center cursor-pointer focus:ring-1 focus:ring-indigo-500/20 shadow-sm appearance-none group-hover:bg-white tracking-tighter";
+
+                const selectedOption = ATTENDANCE_OPTIONS.find(opt => opt.value === typeVal);
+                if (selectedOption) {
+                    selectClass += ` ${selectedOption.color}`;
+                } else {
+                    selectClass += ` text-slate-500`;
                 }
 
-                updateAllSummaries();
-            }
-        }
+                typeSelect.className = selectClass;
 
-        function createInputWrapper(dateStr, i, targetTeam, inputVal, otVal, typeVal, teamLabel) {
-            const wrapper = document.createElement('div');
-            wrapper.className = "flex gap-1 group items-center";
+                ATTENDANCE_OPTIONS.forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt.value;
+                    option.text = opt.label;
+                    if (opt.value === typeVal) option.selected = true;
+                    typeSelect.appendChild(option);
+                });
 
-            // Name Input
-            const input = document.createElement('input');
-            input.type = "text";
-            input.className = "flex-1 min-w-0 text-xs h-6 bg-slate-50 border-0 rounded px-2 text-slate-700 placeholder-slate-400 focus:bg-white focus:ring-1 focus:ring-indigo-500/20 transition-all shadow-sm group-hover:bg-white";
-            input.placeholder = `${teamLabel} ${i + 1}`;
-            input.value = inputVal;
-            input.addEventListener('input', (e) => saveMemo(dateStr, i, e.target.value, targetTeam));
+                typeSelect.addEventListener('change', (e) => saveMemoType(dateStr, i, e.target.value, targetTeam));
 
-            // Attendance Type Select
-            const typeSelect = document.createElement('select');
-            let selectClass = "w-10 text-[9px] h-6 bg-slate-50 border-0 rounded px-0 text-center cursor-pointer focus:ring-1 focus:ring-indigo-500/20 shadow-sm appearance-none group-hover:bg-white tracking-tighter";
+                // OT Input
+                const otInput = document.createElement('input');
+                otInput.type = "number";
+                otInput.step = "0.5";
+                otInput.className = "w-9 text-xs h-6 text-center bg-slate-50 border-0 rounded px-0 text-slate-600 font-medium placeholder-slate-400 focus:bg-white focus:ring-1 focus:ring-indigo-500/20 transition-all shadow-sm group-hover:bg-white";
+                otInput.placeholder = "OT";
+                otInput.value = otVal;
+                otInput.addEventListener('input', (e) => saveMemoOT(dateStr, i, e.target.value, targetTeam));
 
-            const selectedOption = ATTENDANCE_OPTIONS.find(opt => opt.value === typeVal);
-            if (selectedOption) {
-                selectClass += ` ${selectedOption.color}`;
-            } else {
-                selectClass += ` text-slate-500`;
-            }
-
-            typeSelect.className = selectClass;
-
-            ATTENDANCE_OPTIONS.forEach(opt => {
-                const option = document.createElement('option');
-                option.value = opt.value;
-                option.text = opt.label;
-                if (opt.value === typeVal) option.selected = true;
-                typeSelect.appendChild(option);
-            });
-
-            typeSelect.addEventListener('change', (e) => saveMemoType(dateStr, i, e.target.value, targetTeam));
-
-            // OT Input
-            const otInput = document.createElement('input');
-            otInput.type = "number";
-            otInput.step = "0.5";
-            otInput.className = "w-9 text-xs h-6 text-center bg-slate-50 border-0 rounded px-0 text-slate-600 font-medium placeholder-slate-400 focus:bg-white focus:ring-1 focus:ring-indigo-500/20 transition-all shadow-sm group-hover:bg-white";
-            otInput.placeholder = "OT";
-            otInput.value = otVal;
-            otInput.addEventListener('input', (e) => saveMemoOT(dateStr, i, e.target.value, targetTeam));
-
-            wrapper.appendChild(input);
-            wrapper.appendChild(typeSelect);
-            wrapper.appendChild(otInput);
-            return wrapper;
-        }
-
-        function generateCompactShiftHtml(shifts) {
-            let html = '';
-            // Sort keys: Day(1), Night(2), JuHyu(3), MuHyu(4), YuHyu(5)
-            const typeOrder = { '주간': 1, '야간': 2, '주휴': 3, '무휴': 4, '유휴': 5 };
-
-            const items = [];
-            for (const [team, type] of Object.entries(shifts)) {
-                if (team === 'DAY_ONLY') continue;
-
-                // [Filter Logic] If a specific team is selected (not ALL), only show that team
-                if (currentTeam !== 'ALL' && currentTeam !== team) continue;
-
-                items.push({ team, type });
+                wrapper.appendChild(input);
+                wrapper.appendChild(typeSelect);
+                wrapper.appendChild(otInput);
+                return wrapper;
             }
 
-            items.sort((a, b) => (typeOrder[a.type.label] || 99) - (typeOrder[b.type.label] || 99));
+            function generateCompactShiftHtml(shifts) {
+                let html = '';
+                // Sort keys: Day(1), Night(2), JuHyu(3), MuHyu(4), YuHyu(5)
+                const typeOrder = { '주간': 1, '야간': 2, '주휴': 3, '무휴': 4, '유휴': 5 };
 
-            items.forEach(item => {
-                const { team, type } = item;
-                let bgClass = "bg-slate-50 text-slate-500 border-slate-200"; // default
+                const items = [];
+                for (const [team, type] of Object.entries(shifts)) {
+                    if (team === 'DAY_ONLY') continue;
 
-                if (type.label === '주간') bgClass = "bg-amber-50 text-amber-700 border-amber-200";
-                else if (type.label === '야간') bgClass = "bg-indigo-50 text-indigo-700 border-indigo-200";
-                else if (type.label === '주휴') bgClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
-                else if (type.label === '무휴') bgClass = "bg-slate-100 text-slate-500 border-slate-200";
-                else if (type.label === '유휴') bgClass = "bg-red-50 text-red-700 border-red-200";
+                    // [Filter Logic] If a specific team is selected (not ALL), only show that team
+                    if (currentTeam !== 'ALL' && currentTeam !== team) continue;
 
-                // Use a cleaner, full-width bar style
-                html += `
+                    items.push({ team, type });
+                }
+
+                items.sort((a, b) => (typeOrder[a.type.label] || 99) - (typeOrder[b.type.label] || 99));
+
+                items.forEach(item => {
+                    const { team, type } = item;
+                    let bgClass = "bg-slate-50 text-slate-500 border-slate-200"; // default
+
+                    if (type.label === '주간') bgClass = "bg-amber-50 text-amber-700 border-amber-200";
+                    else if (type.label === '야간') bgClass = "bg-indigo-50 text-indigo-700 border-indigo-200";
+                    else if (type.label === '주휴') bgClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                    else if (type.label === '무휴') bgClass = "bg-slate-100 text-slate-500 border-slate-200";
+                    else if (type.label === '유휴') bgClass = "bg-red-50 text-red-700 border-red-200";
+
+                    // Use a cleaner, full-width bar style
+                    html += `
                 <div class="flex items-center justify-between px-2 py-1 mb-1 last:mb-0 rounded text-[10px] w-full border ${bgClass}">
                     <span class="font-bold">${type.label}</span>
                     <span class="font-bold text-[11px]">${team}</span>
                 </div>`;
-            });
-            return html;
-        }
-
-        init();
-
-        setTimeout(() => {
-            if (window.isFirebaseLoaded === false && window.hasFirebaseConfig) {
-                console.log("Loading timed out. Forcing offline mode.");
-                window.isFirebaseLoaded = true;
-                if (window.renderCalendar) window.renderCalendar();
+                });
+                return html;
             }
-        }, 3000);
-    </script>
+
+            init();
+
+            setTimeout(() => {
+                if (window.isFirebaseLoaded === false && window.hasFirebaseConfig) {
+                    console.log("Loading timed out. Forcing offline mode.");
+                    window.isFirebaseLoaded = true;
+                    if (window.renderCalendar) window.renderCalendar();
+                }
+            }, 3000);
+        </script>
 </body>
 
 </html>
