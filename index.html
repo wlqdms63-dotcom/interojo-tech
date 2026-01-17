@@ -545,10 +545,12 @@
 
     <script>
         window.dbState = {};
-        let currentYear = 2026;
-        let currentMonth = 0;
+        // 현재 날짜 기준으로 초기화
+        const today = new Date();
+        let currentYear = today.getFullYear();
+        let currentMonth = today.getMonth();
         let viewMode = 'CALENDAR';
-        let currentTeam = 'ALL';
+        let currentTeam = 'ALL'; // 월간 캘린더 기본값은 전체
         const BASE_DATE = new Date(2026, 0, 1);
         const SHIFT_WORK_HOURS = 10.25;
         const DAY_WORK_HOURS = 8.0;
@@ -596,10 +598,12 @@
         function updateTeamButtons() {
             ['ALL', 'A', 'B', 'C', 'DAY_ONLY'].forEach(t => {
                 const btn = document.getElementById(`btn-${t}`);
-                if (t === currentTeam) {
-                    btn.className = "flex-1 py-1 text-xs font-bold rounded-md transition-all bg-white text-indigo-600 shadow-sm border border-slate-200";
-                } else {
-                    btn.className = "flex-1 py-1 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700 hover:bg-white/50";
+                if (btn && btn.style.display !== 'none') {
+                    if (t === currentTeam) {
+                        btn.className = "flex-1 py-1 text-xs font-bold rounded-md transition-all bg-white text-indigo-600 shadow-sm border border-slate-200";
+                    } else {
+                        btn.className = "flex-1 py-1 text-xs font-medium rounded-md transition-all text-slate-500 hover:text-slate-700 hover:bg-white/50";
+                    }
                 }
             });
         }
@@ -655,6 +659,13 @@
                 monthSelect.appendChild(opt);
             }
 
+            // 현재 날짜 기준으로 year/month select 값 설정
+            const yearSelect = document.getElementById('yearSelect');
+            if (yearSelect.querySelector(`option[value="${currentYear}"]`)) {
+                yearSelect.value = currentYear;
+            }
+            monthSelect.value = currentMonth;
+
             document.getElementById('yearSelect').addEventListener('change', (e) => {
                 currentYear = parseInt(e.target.value);
                 window.currentYear = currentYear;
@@ -690,6 +701,16 @@
 
             const teamSelect = document.getElementById('teamSelectContainer');
             const placeholder = document.getElementById('teamSelectPlaceholder');
+            const btnAll = document.getElementById('btn-ALL');
+
+            // 월간 캘린더 모드에서는 "전체" 버튼 표시, 근무조별 입력에서는 숨김
+            if (mode === 'CALENDAR') {
+                if (btnAll) btnAll.style.display = '';
+                currentTeam = 'ALL'; // 월간 캘린더로 이동 시 항상 전체로 설정
+            } else if (mode === 'TEAM') {
+                if (btnAll) btnAll.style.display = 'none';
+                if (currentTeam === 'ALL') currentTeam = 'A'; // 근무조별 입력으로 갈 때 A조로 변경
+            }
 
             if (mode === 'TEAM' || mode === 'CALENDAR') {
                 teamSelect.classList.remove('hidden');
@@ -701,12 +722,26 @@
             }
 
             renderCalendar();
+
+            // 근무조별 입력 또는 전체상세 모드일 때 오늘 날짜로 스크롤
+            if (mode === 'TEAM' || mode === 'DETAIL') {
+                setTimeout(() => {
+                    scrollToToday();
+                }, 100);
+            }
         }
 
         function setTeamFilter(team) {
             currentTeam = team;
             updateTeamButtons();
             renderCalendar();
+
+            // 근무조별 입력 모드일 때 조 선택 시 오늘 날짜로 스크롤
+            if (viewMode === 'TEAM') {
+                setTimeout(() => {
+                    scrollToToday();
+                }, 100);
+            }
         }
 
         function updateTeamButtons() {
@@ -1215,40 +1250,82 @@
         }
 
         function generateCompactShiftHtml(shifts) {
-            let html = '';
-            // Sort keys: Day(1), Night(2), JuHyu(3), MuHyu(4), YuHyu(5)
-            const typeOrder = { '주간': 1, '야간': 2, '주휴': 3, '무휴': 4, '유휴': 5 };
+            // A, B, C 조를 세로 막대로 고정 표시하고, 근무 상태에 따라 배경색만 변경
+            const teams = ['A', 'B', 'C'];
+            let html = '<div class="flex gap-0.5 w-full">';
 
-            const items = [];
-            for (const [team, type] of Object.entries(shifts)) {
-                if (team === 'DAY_ONLY') continue;
+            teams.forEach(team => {
+                // 현재 팀 필터링 로직: 전체가 아니고 선택된 팀이 아니면 스킵
+                if (currentTeam !== 'ALL' && currentTeam !== team) return;
 
-                // [Filter Logic] If a specific team is selected (not ALL), only show that team
-                if (currentTeam !== 'ALL' && currentTeam !== team) continue;
+                const shiftType = shifts[team];
+                if (!shiftType) return;
 
-                items.push({ team, type });
-            }
+                let bgClass = "bg-slate-100"; // default
+                let textClass = "text-slate-600";
+                let statusText = shiftType.label.substring(0, 2); // 주간 -> 주간, 야간 -> 야간, 주휴 -> 주휴
 
-            items.sort((a, b) => (typeOrder[a.type.label] || 99) - (typeOrder[b.type.label] || 99));
+                // 근무 상태에 따른 배경색 설정 - 파스텔톤
+                if (shiftType.label === '주간') {
+                    bgClass = "bg-orange-200";
+                    textClass = "text-orange-800";
+                } else if (shiftType.label === '야간') {
+                    bgClass = "bg-blue-200";
+                    textClass = "text-blue-800";
+                } else if (shiftType.label === '주휴') {
+                    bgClass = "bg-red-200";
+                    textClass = "text-red-800";
+                } else if (shiftType.label === '무휴') {
+                    bgClass = "bg-red-200";
+                    textClass = "text-red-800";
+                } else if (shiftType.label === '유휴') {
+                    bgClass = "bg-red-300";
+                    textClass = "text-red-900";
+                }
 
-            items.forEach(item => {
-                const { team, type } = item;
-                let bgClass = "bg-slate-50 text-slate-500 border-slate-200"; // default
-
-                if (type.label === '주간') bgClass = "bg-amber-50 text-amber-700 border-amber-200";
-                else if (type.label === '야간') bgClass = "bg-indigo-50 text-indigo-700 border-indigo-200";
-                else if (type.label === '주휴') bgClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
-                else if (type.label === '무휴') bgClass = "bg-slate-100 text-slate-500 border-slate-200";
-                else if (type.label === '유휴') bgClass = "bg-red-50 text-red-700 border-red-200";
-
-                // Use a cleaner, full-width bar style
+                // 세로 막대 형태로 렌더링
                 html += `
-                <div class="flex items-center justify-between px-2 py-1 mb-1 last:mb-0 rounded text-[10px] w-full border ${bgClass}">
-                    <span class="font-bold">${type.label}</span>
-                    <span class="font-bold text-[11px]">${team}</span>
+                <div class="flex-1 flex flex-col items-center justify-between ${bgClass} ${textClass} rounded px-1 py-2 min-h-[60px]">
+                    <span class="text-[8px] font-bold leading-tight">${statusText}</span>
+                    <span class="text-xs font-bold mt-1">${team}</span>
                 </div>`;
             });
+
+            html += '</div>';
             return html;
+        }
+
+        // 오늘 날짜로 스크롤하는 함수
+        function scrollToToday() {
+            const container = document.getElementById('calendar');
+            if (!container || viewMode === 'CALENDAR') return;
+
+            const today = new Date();
+            const todayStr = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
+
+            // 현재 표시 중인 월과 오늘 날짜의 월이 같을 때만 스크롤
+            if (today.getFullYear() === currentYear && today.getMonth() === currentMonth) {
+                const cards = container.querySelectorAll('.day-card, .detail-card');
+                let targetCard = null;
+
+                cards.forEach((card, index) => {
+                    const header = card.querySelector('.date-box');
+                    if (header && header.textContent.includes(`${currentMonth + 1}.${today.getDate()}`)) {
+                        targetCard = card;
+                    }
+                });
+
+                if (targetCard) {
+                    // 카드가 중앙에 오도록 스크롤
+                    const containerRect = container.getBoundingClientRect();
+                    const cardRect = targetCard.getBoundingClientRect();
+                    const scrollLeft = targetCard.offsetLeft - (containerRect.width / 2) + (cardRect.width / 2);
+                    container.scrollTo({
+                        left: scrollLeft,
+                        behavior: 'smooth'
+                    });
+                }
+            }
         }
 
         init();
